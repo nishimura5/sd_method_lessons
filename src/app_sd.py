@@ -1,0 +1,196 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+
+import pandas as pd
+
+from sd_utils import factor_analysis_with_varimax, get_japanese_monospace_font, set_japanese_font
+
+
+class SDApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("SD法 因子分析ツール")
+        self.root.geometry("900x700")
+        self.root.minsize(800, 600)
+
+        self.df = None
+        self.check_vars = {}
+
+        set_japanese_font()
+        self._build_ui()
+
+    def _build_ui(self):
+        # === CSVファイル選択 ===
+        frame_file = ttk.LabelFrame(self.root, text="① CSVファイル選択", padding=10)
+        frame_file.pack(fill=tk.X, padx=10, pady=(10, 5))
+
+        self.file_path_var = tk.StringVar()
+        ttk.Entry(frame_file, textvariable=self.file_path_var, state="readonly", width=70).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
+        )
+        ttk.Button(frame_file, text="ファイル選択", command=self._select_file).pack(side=tk.LEFT)
+
+        # === オブジェクト名カラム選択 ===
+        frame_obj = ttk.LabelFrame(self.root, text="② オブジェクト名カラム選択", padding=10)
+        frame_obj.pack(fill=tk.X, padx=10, pady=5)
+
+        self.obj_col_var = tk.StringVar()
+        self.obj_col_combo = ttk.Combobox(frame_obj, textvariable=self.obj_col_var, state="readonly", width=40)
+        self.obj_col_combo.pack(side=tk.LEFT)
+
+        # === 左右分割: 形容詞対カラム選択（左）と結果表示（右） ===
+        paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        # --- 左側: 形容詞対カラム選択 ---
+        frame_adj = ttk.LabelFrame(paned, text="③ 形容詞対カラム選択", padding=10)
+        paned.add(frame_adj, weight=1)
+
+        # スクロール可能なチェックボックス領域
+        canvas = tk.Canvas(frame_adj, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(frame_adj, orient=tk.VERTICAL, command=canvas.yview)
+        self.check_frame = ttk.Frame(canvas)
+
+        self.check_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=self.check_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # マウスホイールでスクロール
+        def _on_mousewheel(event):
+            canvas.yview_scroll(-1 * (event.delta // 120 or (1 if event.delta > 0 else -1)), "units")
+
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # --- 右側: 結果表示 ---
+        frame_right = ttk.Frame(paned)
+        paned.add(frame_right, weight=3)
+
+        # 因子数選択と実行
+        frame_exec = ttk.LabelFrame(frame_right, text="④ 因子分析の実行", padding=10)
+        frame_exec.pack(fill=tk.X, pady=(0, 5))
+
+        ttk.Label(frame_exec, text="因子数:").pack(side=tk.LEFT)
+        self.n_factors_var = tk.StringVar(value="3")
+        factor_combo = ttk.Combobox(
+            frame_exec, textvariable=self.n_factors_var, state="readonly", values=["2", "3", "4", "5"], width=5
+        )
+        factor_combo.pack(side=tk.LEFT, padx=(5, 15))
+
+        ttk.Button(frame_exec, text="因子分析を実行", command=self._run_analysis).pack(side=tk.LEFT)
+
+        # 因子負荷行列・因子得点の表示領域
+        frame_result = ttk.LabelFrame(frame_right, text="因子負荷行列 / 因子得点", padding=10)
+        frame_result.pack(fill=tk.BOTH, expand=True)
+
+        self.result_text = tk.Text(frame_result, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
+        scroll_y = ttk.Scrollbar(frame_result, orient=tk.VERTICAL, command=self.result_text.yview)
+        scroll_x = ttk.Scrollbar(frame_result, orient=tk.HORIZONTAL, command=self.result_text.xview)
+        self.result_text.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
+
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        scroll_x.pack(side=tk.BOTTOM, fill=tk.X)
+        self.result_text.pack(fill=tk.BOTH, expand=True)
+
+    def _select_file(self):
+        path = filedialog.askopenfilename(
+            title="CSVファイルを選択",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+
+        try:
+            self.df = pd.read_csv(path)
+        except Exception as e:
+            messagebox.showerror("エラー", f"CSVの読み込みに失敗しました:\n{e}")
+            return
+
+        self.file_path_var.set(path)
+
+        # カラム一覧をオブジェクト名コンボボックスに設定
+        columns = list(self.df.columns)
+        self.obj_col_combo["values"] = columns
+        if columns:
+            self.obj_col_combo.current(0)
+
+        # 数値カラムを形容詞対候補としてチェックボックス表示
+        self._populate_checkboxes()
+
+    def _populate_checkboxes(self):
+        # 既存のチェックボックスをクリア
+        for w in self.check_frame.winfo_children():
+            w.destroy()
+        self.check_vars.clear()
+
+        if self.df is None:
+            return
+
+        numeric_cols = self.df.select_dtypes(include="number").columns.tolist()
+        for col in numeric_cols:
+            var = tk.BooleanVar(value=True)
+            self.check_vars[col] = var
+            ttk.Checkbutton(self.check_frame, text=col, variable=var).pack(anchor=tk.W, pady=1)
+
+    def _run_analysis(self):
+        if self.df is None:
+            messagebox.showwarning("警告", "先にCSVファイルを読み込んでください。")
+            return
+
+        obj_col = self.obj_col_var.get()
+        if not obj_col:
+            messagebox.showwarning("警告", "オブジェクト名カラムを選択してください。")
+            return
+
+        selected_cols = [col for col, var in self.check_vars.items() if var.get()]
+        if not selected_cols:
+            messagebox.showwarning("警告", "分析対象の形容詞対カラムを1つ以上選択してください。")
+            return
+
+        n_factors = int(self.n_factors_var.get())
+
+        if n_factors > len(selected_cols):
+            messagebox.showwarning("警告", f"因子数({n_factors})が選択カラム数({len(selected_cols)})を超えています。")
+            return
+
+        try:
+            # 全回答者データで因子分析を実行
+            factor_names = [f"因子{i + 1}" for i in range(n_factors)]
+            loading_df, factor_score_df = factor_analysis_with_varimax(self.df, selected_cols, factor_names)
+
+            # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
+            factor_score_df[obj_col] = self.df[obj_col].values
+            score_df = factor_score_df.groupby(obj_col).mean()
+            # Sort factors
+            loading_df["max_abs_loading"] = loading_df.abs().max(axis=1)
+            loading_df["best_factor"] = loading_df.abs().idxmax(axis=1)
+            loading_df = loading_df.sort_values(["best_factor", "max_abs_loading"], ascending=[True, False])
+            loading_df = loading_df.drop(columns=["max_abs_loading", "best_factor"])
+
+            # 結果を表示
+            self.result_text.delete("1.0", tk.END)
+
+            self.result_text.insert(tk.END, "=" * 60 + "\n")
+            self.result_text.insert(tk.END, " 因子負荷行列（バリマックス回転後）\n")
+            self.result_text.insert(tk.END, "=" * 60 + "\n")
+            self.result_text.insert(tk.END, loading_df.round(3).to_string() + "\n\n")
+
+            self.result_text.insert(tk.END, "=" * 60 + "\n")
+            self.result_text.insert(tk.END, " 各オブジェクトの因子得点\n")
+            self.result_text.insert(tk.END, "=" * 60 + "\n")
+            self.result_text.insert(tk.END, score_df.round(3).to_string() + "\n")
+
+        except Exception as e:
+            messagebox.showerror("エラー", f"因子分析でエラーが発生しました:\n{e}")
+
+
+def main():
+    root = tk.Tk()
+    SDApp(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
