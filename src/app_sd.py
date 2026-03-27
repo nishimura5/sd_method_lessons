@@ -9,7 +9,7 @@ from sd_utils import factor_analysis_with_varimax, get_japanese_monospace_font, 
 class SDApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("SD法 因子分析ツール")
+        self.root.title("SD Method Factor Analysis Tool")
         self.root.geometry("900x700")
         self.root.minsize(800, 600)
 
@@ -21,17 +21,17 @@ class SDApp:
 
     def _build_ui(self):
         # === CSVファイル選択 ===
-        frame_file = ttk.LabelFrame(self.root, text="① CSVファイル選択", padding=10)
+        frame_file = ttk.LabelFrame(self.root, text="1. Select CSV File", padding=10)
         frame_file.pack(fill=tk.X, padx=10, pady=(10, 5))
 
         self.file_path_var = tk.StringVar()
         ttk.Entry(frame_file, textvariable=self.file_path_var, state="readonly", width=70).pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
         )
-        ttk.Button(frame_file, text="ファイル選択", command=self._select_file).pack(side=tk.LEFT)
+        ttk.Button(frame_file, text="Browse", command=self._select_file).pack(side=tk.LEFT)
 
-        # === オブジェクト名カラム選択 ===
-        frame_obj = ttk.LabelFrame(self.root, text="② オブジェクト名カラム選択", padding=10)
+        # === 刺激名カラム選択 ===
+        frame_obj = ttk.LabelFrame(self.root, text="2. Select Stimulus Column", padding=10)
         frame_obj.pack(fill=tk.X, padx=10, pady=5)
 
         self.obj_col_var = tk.StringVar()
@@ -43,7 +43,7 @@ class SDApp:
         paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         # --- 左側: 形容詞対カラム選択 ---
-        frame_adj = ttk.LabelFrame(paned, text="③ 形容詞対カラム選択", padding=10)
+        frame_adj = ttk.LabelFrame(paned, text="3. Select Adjective Pair Columns", padding=10)
         paned.add(frame_adj, weight=1)
 
         # スクロール可能なチェックボックス領域
@@ -69,20 +69,20 @@ class SDApp:
         paned.add(frame_right, weight=3)
 
         # 因子数選択と実行
-        frame_exec = ttk.LabelFrame(frame_right, text="④ 因子分析の実行", padding=10)
+        frame_exec = ttk.LabelFrame(frame_right, text="4. Run Factor Analysis", padding=10)
         frame_exec.pack(fill=tk.X, pady=(0, 5))
 
-        ttk.Label(frame_exec, text="因子数:").pack(side=tk.LEFT)
+        ttk.Label(frame_exec, text="Factors:").pack(side=tk.LEFT)
         self.n_factors_var = tk.StringVar(value="3")
         factor_combo = ttk.Combobox(
             frame_exec, textvariable=self.n_factors_var, state="readonly", values=["2", "3", "4", "5"], width=5
         )
         factor_combo.pack(side=tk.LEFT, padx=(5, 15))
 
-        ttk.Button(frame_exec, text="因子分析を実行", command=self._run_analysis).pack(side=tk.LEFT)
+        ttk.Button(frame_exec, text="Run Analysis", command=self._run_analysis).pack(side=tk.LEFT)
 
         # 因子負荷行列・因子得点の表示領域
-        frame_result = ttk.LabelFrame(frame_right, text="因子負荷行列 / 因子得点", padding=10)
+        frame_result = ttk.LabelFrame(frame_right, text="Factor Loading Matrix / Factor Scores", padding=10)
         frame_result.pack(fill=tk.BOTH, expand=True)
 
         self.result_text = tk.Text(frame_result, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
@@ -96,7 +96,7 @@ class SDApp:
 
     def _select_file(self):
         path = filedialog.askopenfilename(
-            title="CSVファイルを選択",
+            title="Select CSV File",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
         )
         if not path:
@@ -105,12 +105,12 @@ class SDApp:
         try:
             self.df = pd.read_csv(path)
         except Exception as e:
-            messagebox.showerror("エラー", f"CSVの読み込みに失敗しました:\n{e}")
+            messagebox.showerror("Error", f"Failed to read CSV file:\n{e}")
             return
 
         self.file_path_var.set(path)
 
-        # カラム一覧をオブジェクト名コンボボックスに設定
+        # カラム一覧を刺激名コンボボックスに設定
         columns = list(self.df.columns)
         self.obj_col_combo["values"] = columns
         if columns:
@@ -136,28 +136,31 @@ class SDApp:
 
     def _run_analysis(self):
         if self.df is None:
-            messagebox.showwarning("警告", "先にCSVファイルを読み込んでください。")
+            messagebox.showwarning("Warning", "Please load a CSV file first.")
             return
 
         obj_col = self.obj_col_var.get()
         if not obj_col:
-            messagebox.showwarning("警告", "オブジェクト名カラムを選択してください。")
+            messagebox.showwarning("Warning", "Please select a stimulus column.")
             return
 
         selected_cols = [col for col, var in self.check_vars.items() if var.get()]
         if not selected_cols:
-            messagebox.showwarning("警告", "分析対象の形容詞対カラムを1つ以上選択してください。")
+            messagebox.showwarning("Warning", "Please select at least one adjective pair column.")
             return
 
         n_factors = int(self.n_factors_var.get())
 
         if n_factors > len(selected_cols):
-            messagebox.showwarning("警告", f"因子数({n_factors})が選択カラム数({len(selected_cols)})を超えています。")
+            messagebox.showwarning(
+                "Warning",
+                f"Number of factors ({n_factors}) exceeds the number of selected columns ({len(selected_cols)}).",
+            )
             return
 
         try:
             # 全回答者データで因子分析を実行
-            factor_names = [f"因子{i + 1}" for i in range(n_factors)]
+            factor_names = [f"Factor{i + 1}" for i in range(n_factors)]
             loading_df, factor_score_df = factor_analysis_with_varimax(self.df, selected_cols, factor_names)
 
             # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
@@ -173,17 +176,17 @@ class SDApp:
             self.result_text.delete("1.0", tk.END)
 
             self.result_text.insert(tk.END, "=" * 60 + "\n")
-            self.result_text.insert(tk.END, " 因子負荷行列（バリマックス回転後）\n")
+            self.result_text.insert(tk.END, " Factor Loading Matrix (after Varimax Rotation)\n")
             self.result_text.insert(tk.END, "=" * 60 + "\n")
             self.result_text.insert(tk.END, loading_df.round(3).to_string() + "\n\n")
 
             self.result_text.insert(tk.END, "=" * 60 + "\n")
-            self.result_text.insert(tk.END, " 各オブジェクトの因子得点\n")
+            self.result_text.insert(tk.END, " Factor Scores by Stimulus\n")
             self.result_text.insert(tk.END, "=" * 60 + "\n")
             self.result_text.insert(tk.END, score_df.round(3).to_string() + "\n")
 
         except Exception as e:
-            messagebox.showerror("エラー", f"因子分析でエラーが発生しました:\n{e}")
+            messagebox.showerror("Error", f"Factor analysis failed:\n{e}")
 
 
 def main():
