@@ -1,3 +1,4 @@
+import re
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -19,6 +20,7 @@ class SDApp:
         self.loading_df = None
         self.score_df = None
         self.factor_names = None
+        self.invert_map = {}
 
         set_japanese_font()
         self._build_ui()
@@ -34,13 +36,34 @@ class SDApp:
         )
         ttk.Button(frame_file, text="Browse", command=self._select_file).pack(side=tk.LEFT)
 
-        # === 刺激名カラム選択 ===
-        frame_obj = ttk.LabelFrame(self.root, text="2. Select Stimulus Column", padding=10)
-        frame_obj.pack(fill=tk.X, padx=10, pady=5)
+        # === 刺激名カラム選択 + 正規表現編集 ===
+        frame_row = ttk.Frame(self.root)
+        frame_row.pack(fill=tk.X, padx=10, pady=5)
+
+        frame_obj = ttk.LabelFrame(frame_row, text="2. Select Stimulus Column", padding=10)
+        frame_obj.pack(side=tk.LEFT, fill=tk.X, padx=(0, 5))
 
         self.obj_col_var = tk.StringVar()
         self.obj_col_combo = ttk.Combobox(frame_obj, textvariable=self.obj_col_var, state="readonly", width=40)
         self.obj_col_combo.pack(side=tk.LEFT)
+
+        # === 形容詞対名の正規表現編集 ===
+        frame_regex = ttk.LabelFrame(
+            frame_row, text="Adjective Pair Regex (2 capture groups → ADJ1 - ADJ2)", padding=10
+        )
+        frame_regex.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        self.regex_var = tk.StringVar(value="")
+        ttk.Entry(frame_regex, textvariable=self.regex_var, width=30).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
+        )
+        ttk.Button(frame_regex, text="Apply", command=self._apply_regex).pack(side=tk.LEFT, padx=(0, 15))
+
+        ttk.Label(frame_regex, text="Scale:").pack(side=tk.LEFT)
+        self.scale_var = tk.StringVar(value="7")
+        ttk.Combobox(frame_regex, textvariable=self.scale_var, state="readonly", values=["5", "7"], width=3).pack(
+            side=tk.LEFT, padx=(5, 0)
+        )
 
         # === 左右分割: 形容詞対カラム選択（左）と結果表示（右） ===
         paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
@@ -172,6 +195,26 @@ class SDApp:
 
         self._update_stats_tree()
 
+    def _format_adj_name(self, col):
+        """正規表現で形容詞対カラム名を 'ADJ1 - ADJ2' 形式に変換する。因子負荷が負の場合は反転。"""
+        pattern = self.regex_var.get().strip()
+        if not pattern:
+            return col
+        try:
+            m = re.search(pattern, col)
+            if m and len(m.groups()) >= 2:
+                adj1, adj2 = m.group(1), m.group(2)
+                if self.invert_map.get(col, False):
+                    return f"{adj2} - {adj1}"
+                return f"{adj1} - {adj2}"
+        except re.error:
+            pass
+        return col
+
+    def _apply_regex(self):
+        """正規表現を適用してTreeviewの表示名を更新する。"""
+        self._update_stats_tree()
+
     def _update_stats_tree(self):
         """選択中の形容詞対カラムの平均・標準偏差（＋因子負荷量）をTreeviewに表示する。"""
         for item in self.stats_tree.get_children():
@@ -206,15 +249,22 @@ class SDApp:
             sorted_cols = selected_cols
 
         for col in sorted_cols:
+            inverted = self.invert_map.get(col, False)
             mean_val = self.df[col].mean()
             std_val = self.df[col].std()
+            if inverted:
+                mean_val = int(self.scale_var.get()) + 1 - mean_val
             row_vals = [f"{mean_val:.3f}", f"{std_val:.3f}"]
             if self.loading_df is not None and col in self.loading_df.index:
                 for fc in factor_cols:
-                    row_vals.append(f"{self.loading_df.at[col, fc]:.3f}")
+                    val = self.loading_df.at[col, fc]
+                    if inverted:
+                        val = -val
+                    row_vals.append(f"{val:.3f}")
             else:
                 row_vals.extend([""] * len(factor_cols))
-            self.stats_tree.insert("", tk.END, text=col, values=row_vals)
+            display_name = self._format_adj_name(col)
+            self.stats_tree.insert("", tk.END, text=display_name, values=row_vals)
 
     def _run_analysis(self):
         if self.df is None:
@@ -255,6 +305,12 @@ class SDApp:
             loading_df["max_abs_loading"] = loading_df.abs().max(axis=1)
             loading_df["best_factor"] = loading_df.abs().idxmax(axis=1)
             loading_df = loading_df.sort_values(["best_factor", "max_abs_loading"], ascending=[True, False])
+
+            # 因子負荷が負の形容詞対を反転させるためのマップを作成
+            self.invert_map = {
+                col: bool(loading_df.loc[col, loading_df.loc[col, "best_factor"]] < 0) for col in loading_df.index
+            }
+
             loading_df = loading_df.drop(columns=["max_abs_loading", "best_factor"])
 
             # 結果を表示
@@ -277,7 +333,14 @@ class SDApp:
         if self.loading_df is not None:
             rotation_label = "Varimax Rotation" if self.use_varimax else "No Rotation"
             title = f"Factor Loading Matrix ({rotation_label})"
-            plot_factor_loadings(self.loading_df, self.factor_names, title=title)
+            # 反転を反映したコピーを作成
+            plot_df = self.loading_df.copy()
+            for col in plot_df.index:
+                if self.invert_map.get(col, False):
+                    plot_df.loc[col] = -plot_df.loc[col]
+            # 表示名に変換
+            plot_df.index = [self._format_adj_name(col) for col in plot_df.index]
+            plot_factor_loadings(plot_df, self.factor_names, title=title)
 
     def _plot_pca(self):
         if self.score_df is not None:
