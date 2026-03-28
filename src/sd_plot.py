@@ -21,7 +21,7 @@ def plot_pca(object_factor_df, factor_names, title):
     object_factor_std = StandardScaler().fit_transform(object_factor_df.values)
     pca = PCA(n_components=2, random_state=0)
     object_pca_2d = pca.fit_transform(object_factor_std)
-    loadings = pca.components_.T
+    factor_axis_vectors_2d = pca.components_.T
 
     object_pca_df = pd.DataFrame(
         object_pca_2d,
@@ -37,8 +37,8 @@ def plot_pca(object_factor_df, factor_names, title):
 
     arrow_scale = 1.5
     for i, feature_name in enumerate(factor_names):
-        x = loadings[i, 0] * arrow_scale
-        y = loadings[i, 1] * arrow_scale
+        x = factor_axis_vectors_2d[i, 0] * arrow_scale
+        y = factor_axis_vectors_2d[i, 1] * arrow_scale
         plt.arrow(
             0,
             0,

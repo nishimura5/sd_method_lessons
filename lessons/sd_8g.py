@@ -38,7 +38,7 @@ print("\nPCA 2次元座標（対象物）:")
 print(object_pca_df.round(3))
 
 # Annotate original factor axes (Factor1-3) on the PCA plot
-loadings = pca.components_.T
+factor_axis_vectors_2d = pca.components_.T
 
 # 以下はグラフ描画
 plt.axhline(0, color="gray", linewidth=0.8)
@@ -50,8 +50,8 @@ for object_code, row in object_pca_df.iterrows():
 
 arrow_scale = 1.5
 for i, feature_name in enumerate(factor_names):
-    x = loadings[i, 0] * arrow_scale
-    y = loadings[i, 1] * arrow_scale
+    x = factor_axis_vectors_2d[i, 0] * arrow_scale
+    y = factor_axis_vectors_2d[i, 1] * arrow_scale
     plt.arrow(
         0,
         0,
