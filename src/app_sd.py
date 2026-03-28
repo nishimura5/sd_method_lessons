@@ -11,7 +11,7 @@ class SDApp:
     def __init__(self, root):
         self.root = root
         self.root.title("SD Method Factor Analysis Tool")
-        self.root.geometry("1200x700")
+        self.root.geometry("1000x800")
         self.root.minsize(800, 600)
 
         self.df = None
@@ -44,7 +44,7 @@ class SDApp:
 
         # === 左右分割: 形容詞対カラム選択（左）と結果表示（右） ===
         paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        paned.pack(fill=tk.BOTH, expand=False, padx=10, pady=5)
 
         # --- 左側: 形容詞対カラム選択 ---
         frame_adj = ttk.LabelFrame(paned, text="3. Select Adjective Pair Columns", padding=10)
@@ -68,12 +68,12 @@ class SDApp:
 
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
-        # --- 右側: 結果表示 ---
-        frame_right = ttk.Frame(paned)
-        paned.add(frame_right, weight=3)
+        # --- 中央: treeviewで各形容詞対のmeanとstdを表示 ---
+        frame_center = ttk.LabelFrame(paned, text="4. Adjective Pair Statistics", padding=10)
+        paned.add(frame_center, weight=1)
 
         # 因子数選択と実行
-        frame_exec = ttk.LabelFrame(frame_right, text="4. Run Factor Analysis", padding=10)
+        frame_exec = ttk.Frame(frame_center)
         frame_exec.pack(fill=tk.X, pady=(0, 5))
 
         ttk.Label(frame_exec, text="Factors:").pack(side=tk.LEFT)
@@ -94,16 +94,35 @@ class SDApp:
         )
         self.btn_plot_loadings.pack(side=tk.LEFT, padx=(15, 5))
 
-        self.btn_plot_pca = ttk.Button(frame_exec, text="Plot PCA", command=self._plot_pca, state=tk.DISABLED)
+        cols = ("mean", "std")
+        self.stats_tree = ttk.Treeview(frame_center, columns=cols, show="tree headings", selectmode="browse")
+        self.stats_tree.heading("#0", text="Adjective Pair", anchor=tk.W)
+        self.stats_tree.heading("mean", text="Mean", anchor=tk.CENTER)
+        self.stats_tree.heading("std", text="Std", anchor=tk.CENTER)
+        self.stats_tree.column("#0", width=180, stretch=True)
+        self.stats_tree.column("mean", width=70, anchor=tk.CENTER, stretch=False)
+        self.stats_tree.column("std", width=70, anchor=tk.CENTER, stretch=False)
+
+        stats_scroll = ttk.Scrollbar(frame_center, orient=tk.VERTICAL, command=self.stats_tree.yview)
+        self.stats_tree.configure(yscrollcommand=stats_scroll.set)
+        self.stats_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        stats_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # --- 下部: 結果表示 ---
+        frame_bottom = ttk.LabelFrame(self.root, text="Factor Scores by Stimulus", padding=10)
+        frame_bottom.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+        # グラフ描画ボタン
+        frame_plot = ttk.Frame(frame_bottom)
+        frame_plot.pack(fill=tk.X, pady=(0, 5))
+
+        self.btn_plot_pca = ttk.Button(frame_plot, text="Plot PCA", command=self._plot_pca, state=tk.DISABLED)
         self.btn_plot_pca.pack(side=tk.LEFT)
 
         # 因子負荷行列・因子得点の表示領域
-        frame_result = ttk.LabelFrame(frame_right, text="Factor Loading Matrix / Factor Scores", padding=10)
-        frame_result.pack(fill=tk.BOTH, expand=True)
-
-        self.result_text = tk.Text(frame_result, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
-        scroll_y = ttk.Scrollbar(frame_result, orient=tk.VERTICAL, command=self.result_text.yview)
-        scroll_x = ttk.Scrollbar(frame_result, orient=tk.HORIZONTAL, command=self.result_text.xview)
+        self.result_text = tk.Text(frame_bottom, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
+        scroll_y = ttk.Scrollbar(frame_bottom, orient=tk.VERTICAL, command=self.result_text.yview)
+        scroll_x = ttk.Scrollbar(frame_bottom, orient=tk.HORIZONTAL, command=self.result_text.xview)
         self.result_text.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
 
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
@@ -148,7 +167,54 @@ class SDApp:
         for col in numeric_cols:
             var = tk.BooleanVar(value=True)
             self.check_vars[col] = var
-            ttk.Checkbutton(self.check_frame, text=col, variable=var).pack(anchor=tk.W, pady=1)
+            cb = ttk.Checkbutton(self.check_frame, text=col, variable=var, command=self._update_stats_tree)
+            cb.pack(anchor=tk.W, pady=1)
+
+        self._update_stats_tree()
+
+    def _update_stats_tree(self):
+        """選択中の形容詞対カラムの平均・標準偏差（＋因子負荷量）をTreeviewに表示する。"""
+        for item in self.stats_tree.get_children():
+            self.stats_tree.delete(item)
+
+        # 因子負荷量がある場合はカラムを動的に追加
+        if self.loading_df is not None:
+            factor_cols = list(self.loading_df.columns)
+            all_cols = ["mean", "std"] + factor_cols
+        else:
+            factor_cols = []
+            all_cols = ["mean", "std"]
+
+        self.stats_tree["columns"] = all_cols
+        for c in all_cols:
+            self.stats_tree.heading(c, text=c.capitalize() if c in ("mean", "std") else c, anchor=tk.CENTER)
+            self.stats_tree.column(c, width=70, anchor=tk.CENTER, stretch=False)
+        self.stats_tree.column("#0", width=180, stretch=True)
+        self.stats_tree.heading("#0", text="Adjective Pair", anchor=tk.W)
+
+        if self.df is None:
+            return
+
+        selected_cols = [col for col, var in self.check_vars.items() if var.get()]
+
+        # loading_dfがある場合はそのソート順（best_factor, max_abs_loading）に従う
+        if self.loading_df is not None:
+            sorted_cols = [c for c in self.loading_df.index if c in selected_cols]
+            # loading_dfに含まれない選択カラムは末尾に追加
+            sorted_cols += [c for c in selected_cols if c not in sorted_cols]
+        else:
+            sorted_cols = selected_cols
+
+        for col in sorted_cols:
+            mean_val = self.df[col].mean()
+            std_val = self.df[col].std()
+            row_vals = [f"{mean_val:.3f}", f"{std_val:.3f}"]
+            if self.loading_df is not None and col in self.loading_df.index:
+                for fc in factor_cols:
+                    row_vals.append(f"{self.loading_df.at[col, fc]:.3f}")
+            else:
+                row_vals.extend([""] * len(factor_cols))
+            self.stats_tree.insert("", tk.END, text=col, values=row_vals)
 
     def _run_analysis(self):
         if self.df is None:
@@ -178,7 +244,9 @@ class SDApp:
             # 全回答者データで因子分析を実行
             factor_names = [f"Factor{i + 1}" for i in range(n_factors)]
             self.use_varimax = self.varimax_var.get()
-            loading_df, factor_score_df = factor_analysis(self.df, selected_cols, factor_names, varimax=self.use_varimax)
+            loading_df, factor_score_df = factor_analysis(
+                self.df, selected_cols, factor_names, varimax=self.use_varimax
+            )
 
             # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
             factor_score_df[obj_col] = self.df[obj_col].values
@@ -192,16 +260,6 @@ class SDApp:
             # 結果を表示
             self.result_text.delete("1.0", tk.END)
 
-            rotation_label = "Varimax Rotation" if self.use_varimax else "No Rotation"
-
-            self.result_text.insert(tk.END, "=" * 60 + "\n")
-            self.result_text.insert(tk.END, f" Factor Loading Matrix ({rotation_label})\n")
-            self.result_text.insert(tk.END, "=" * 60 + "\n")
-            self.result_text.insert(tk.END, loading_df.round(3).to_string() + "\n\n")
-
-            self.result_text.insert(tk.END, "=" * 60 + "\n")
-            self.result_text.insert(tk.END, " Factor Scores by Stimulus\n")
-            self.result_text.insert(tk.END, "=" * 60 + "\n")
             self.result_text.insert(tk.END, score_df.round(3).to_string() + "\n")
 
             self.loading_df = loading_df
@@ -209,6 +267,8 @@ class SDApp:
             self.factor_names = factor_names
             self.btn_plot_loadings.config(state=tk.NORMAL)
             self.btn_plot_pca.config(state=tk.NORMAL)
+
+            self._update_stats_tree()
 
         except Exception as e:
             messagebox.showerror("Error", f"Factor analysis failed:\n{e}")
