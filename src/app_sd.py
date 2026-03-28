@@ -3,18 +3,22 @@ from tkinter import filedialog, messagebox, ttk
 
 import pandas as pd
 
-from sd_utils import factor_analysis_with_varimax, get_japanese_monospace_font, set_japanese_font
+from sd_plot import plot_factor_loadings, plot_pca
+from sd_utils import factor_analysis, get_japanese_monospace_font, set_japanese_font
 
 
 class SDApp:
     def __init__(self, root):
         self.root = root
         self.root.title("SD Method Factor Analysis Tool")
-        self.root.geometry("900x700")
+        self.root.geometry("1200x700")
         self.root.minsize(800, 600)
 
         self.df = None
         self.check_vars = {}
+        self.loading_df = None
+        self.score_df = None
+        self.factor_names = None
 
         set_japanese_font()
         self._build_ui()
@@ -79,7 +83,19 @@ class SDApp:
         )
         factor_combo.pack(side=tk.LEFT, padx=(5, 15))
 
+        self.varimax_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(frame_exec, text="Varimax", variable=self.varimax_var).pack(side=tk.LEFT, padx=(0, 15))
+        self.use_varimax = self.varimax_var.get()
+
         ttk.Button(frame_exec, text="Run Analysis", command=self._run_analysis).pack(side=tk.LEFT)
+
+        self.btn_plot_loadings = ttk.Button(
+            frame_exec, text="Plot Loadings", command=self._plot_loadings, state=tk.DISABLED
+        )
+        self.btn_plot_loadings.pack(side=tk.LEFT, padx=(15, 5))
+
+        self.btn_plot_pca = ttk.Button(frame_exec, text="Plot PCA", command=self._plot_pca, state=tk.DISABLED)
+        self.btn_plot_pca.pack(side=tk.LEFT)
 
         # 因子負荷行列・因子得点の表示領域
         frame_result = ttk.LabelFrame(frame_right, text="Factor Loading Matrix / Factor Scores", padding=10)
@@ -161,7 +177,8 @@ class SDApp:
         try:
             # 全回答者データで因子分析を実行
             factor_names = [f"Factor{i + 1}" for i in range(n_factors)]
-            loading_df, factor_score_df = factor_analysis_with_varimax(self.df, selected_cols, factor_names)
+            self.use_varimax = self.varimax_var.get()
+            loading_df, factor_score_df = factor_analysis(self.df, selected_cols, factor_names, varimax=self.use_varimax)
 
             # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
             factor_score_df[obj_col] = self.df[obj_col].values
@@ -175,8 +192,10 @@ class SDApp:
             # 結果を表示
             self.result_text.delete("1.0", tk.END)
 
+            rotation_label = "Varimax Rotation" if self.use_varimax else "No Rotation"
+
             self.result_text.insert(tk.END, "=" * 60 + "\n")
-            self.result_text.insert(tk.END, " Factor Loading Matrix (after Varimax Rotation)\n")
+            self.result_text.insert(tk.END, f" Factor Loading Matrix ({rotation_label})\n")
             self.result_text.insert(tk.END, "=" * 60 + "\n")
             self.result_text.insert(tk.END, loading_df.round(3).to_string() + "\n\n")
 
@@ -185,8 +204,24 @@ class SDApp:
             self.result_text.insert(tk.END, "=" * 60 + "\n")
             self.result_text.insert(tk.END, score_df.round(3).to_string() + "\n")
 
+            self.loading_df = loading_df
+            self.score_df = score_df
+            self.factor_names = factor_names
+            self.btn_plot_loadings.config(state=tk.NORMAL)
+            self.btn_plot_pca.config(state=tk.NORMAL)
+
         except Exception as e:
             messagebox.showerror("Error", f"Factor analysis failed:\n{e}")
+
+    def _plot_loadings(self):
+        if self.loading_df is not None:
+            rotation_label = "Varimax Rotation" if self.use_varimax else "No Rotation"
+            title = f"Factor Loading Matrix ({rotation_label})"
+            plot_factor_loadings(self.loading_df, self.factor_names, title=title)
+
+    def _plot_pca(self):
+        if self.score_df is not None:
+            plot_pca(self.score_df, self.factor_names, title="Stimulus Positions (PCA 2D + Factor Axis Annotation)")
 
 
 def main():
