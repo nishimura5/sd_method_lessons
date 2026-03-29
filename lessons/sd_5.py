@@ -1,5 +1,7 @@
+import re
 import matplotlib.pyplot as plt
 import pandas as pd
+
 import sd_utils
 
 sd_utils.set_japanese_font()
@@ -16,7 +18,9 @@ print(corr_df.round(3))
 
 plt.imshow(corr_df.values, aspect="equal", vmin=-1, vmax=1, cmap="coolwarm")
 plt.colorbar(label="相関係数")
-scale_labels = [c.replace("評価.(1)", "").replace("(7)", "") for c in tar_cols]
+scale_labels = [
+    f"{m.group(1)}-{m.group(2)}" if (m := re.search(r"評価.\(1\)(.+)-(.+)\(7\)", c)) else c for c in tar_cols
+]
 plt.xticks(range(len(scale_labels)), scale_labels, rotation=90, fontsize=8)
 plt.yticks(range(len(scale_labels)), scale_labels, rotation=0, fontsize=8)
 

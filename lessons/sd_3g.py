@@ -1,3 +1,4 @@
+import re
 import matplotlib.pyplot as plt
 import pandas as pd
 import sd_utils
@@ -26,10 +27,9 @@ tar_cols = heatmap_df.index.tolist()
 left_order = []
 right_order = []
 for col in tar_cols:
-    left_label = col.split("(1)")[1].split("-")[0]
-    right_label = col.split("-")[1].split("(7)")[0]
-    left_order.append(left_label)
-    right_order.append(right_label)
+    m = re.search(r"評価.\(1\)(.+)-(.+)\(7\)", col)
+    left_order.append(m.group(1))
+    right_order.append(m.group(2))
 
 # グラフ描画
 plt.imshow(heatmap_df.values, aspect="auto", cmap="GnBu")
