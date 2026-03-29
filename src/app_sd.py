@@ -6,43 +6,7 @@ import pandas as pd
 
 from sd_plot import plot_factor_loadings, plot_pca
 from sd_utils import factor_analysis, get_japanese_monospace_font, set_japanese_font
-
-
-class ToolTip:
-    """ウィジェットにマウスホバーで表示されるツールチップ。"""
-
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.tipwindow = None
-        widget.bind("<Enter>", self._show)
-        widget.bind("<Leave>", self._hide)
-
-    def _show(self, event=None):
-        if self.tipwindow:
-            return
-        x = self.widget.winfo_rootx() + 20
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 5
-        self.tipwindow = tw = tk.Toplevel(self.widget)
-        tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
-        label = tk.Label(
-            tw,
-            text=self.text,
-            justify=tk.LEFT,
-            background="#ffffe0",
-            relief=tk.SOLID,
-            borderwidth=1,
-            font=("TkDefaultFont", 11),
-            padx=8,
-            pady=6,
-        )
-        label.pack()
-
-    def _hide(self, event=None):
-        if self.tipwindow:
-            self.tipwindow.destroy()
-            self.tipwindow = None
+from tooltip import ToolTip
 
 
 class SDApp:
@@ -95,10 +59,7 @@ class SDApp:
         regex_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         ToolTip(
             regex_entry,
-            "【Example】\n"
-            '  original: "Q1_warm_cold"\n'
-            "  regex: Q\\d+_(.+)_(.+)\n"
-            "  result: warm - cold",
+            '【Example】\n  original: "Q1_warm_cold"\n  regex: Q\\d+_(.+)_(.+)\n  result: warm - cold',
         )
         ttk.Button(frame_regex, text="Apply", command=self._apply_regex).pack(side=tk.LEFT, padx=(0, 15))
 
