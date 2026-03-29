@@ -1,3 +1,4 @@
+import os
 import re
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -145,6 +146,9 @@ class SDApp:
 
         self.btn_plot_pca = ttk.Button(frame_plot, text="Plot PCA", command=self._plot_pca, state=tk.DISABLED)
         self.btn_plot_pca.pack(side=tk.LEFT)
+
+        self.btn_export_csv = ttk.Button(frame_plot, text="Export CSV", command=self._export_csv, state=tk.DISABLED)
+        self.btn_export_csv.pack(side=tk.LEFT, padx=(15, 0))
 
         # 因子負荷行列・因子得点の表示領域
         self.result_text = tk.Text(frame_bottom, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
@@ -327,6 +331,7 @@ class SDApp:
             self.factor_names = factor_names
             self.btn_plot_loadings.config(state=tk.NORMAL)
             self.btn_plot_pca.config(state=tk.NORMAL)
+            self.btn_export_csv.config(state=tk.NORMAL)
 
             self._update_stats_tree()
 
@@ -345,6 +350,22 @@ class SDApp:
             # 表示名に変換
             plot_df.index = [self._format_adj_name(col) for col in plot_df.index]
             plot_factor_loadings(plot_df, self.factor_names, title=title)
+
+    def _export_csv(self):
+        if self.score_df is None:
+            return
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        path = filedialog.asksaveasfilename(
+            title="Export Factor Scores",
+            initialdir=desktop,
+            initialfile="factor_scores.csv",
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+        )
+        if not path:
+            return
+        self.score_df.round(3).to_csv(path, encoding="utf-8-sig")
+        messagebox.showinfo("Export", f"Saved to:\n{path}")
 
     def _plot_pca(self):
         if self.score_df is not None:
