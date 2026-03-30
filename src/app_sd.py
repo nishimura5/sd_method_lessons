@@ -169,7 +169,13 @@ class SDApp:
             return
 
         try:
-            self.df = pd.read_csv(path)
+            self.df = pd.read_csv(path, encoding="utf-8")
+        except UnicodeDecodeError:
+            try:
+                self.df = pd.read_csv(path, encoding="cp932")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to read CSV file:\n{e}")
+                return
         except Exception as e:
             messagebox.showerror("Error", f"Failed to read CSV file:\n{e}")
             return
