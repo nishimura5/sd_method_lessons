@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
+
 def plot_factor_loadings(loading_df, factor_names, title):
     plt.imshow(loading_df.values, aspect="auto", vmin=-1, vmax=1, cmap="coolwarm")
     plt.xticks(range(loading_df.shape[1]), loading_df.columns, rotation=0)
@@ -30,7 +31,7 @@ def plot_pca(object_factor_df, factor_names, title):
     )
     plt.axhline(0, color="gray", linewidth=0.8)
     plt.axvline(0, color="gray", linewidth=0.8)
-    plt.scatter(object_pca_df["PC1"], object_pca_df["PC2"], s=80)
+    plt.scatter(object_pca_df["PC1"], object_pca_df["PC2"], s=20)
 
     for object_code, row in object_pca_df.iterrows():
         plt.text(row["PC1"] + 0.03, row["PC2"] + 0.03, object_code, fontsize=10)
