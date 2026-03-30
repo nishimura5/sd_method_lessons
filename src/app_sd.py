@@ -29,7 +29,7 @@ class SDApp:
 
     def _build_ui(self):
         # === CSVファイル選択 ===
-        frame_file = ttk.LabelFrame(self.root, text="1. Select CSV File", padding=10)
+        frame_file = ttk.LabelFrame(self.root, text="Select CSV File", padding=10)
         frame_file.pack(fill=tk.X, padx=10, pady=(10, 5))
 
         self.file_path_var = tk.StringVar()
@@ -42,7 +42,7 @@ class SDApp:
         frame_row = ttk.Frame(self.root)
         frame_row.pack(fill=tk.X, padx=10, pady=5)
 
-        frame_obj = ttk.LabelFrame(frame_row, text="2. Select Stimulus Column", padding=10)
+        frame_obj = ttk.LabelFrame(frame_row, text="Stimulus Column", padding=10)
         frame_obj.pack(side=tk.LEFT, fill=tk.X, padx=(0, 5))
 
         self.obj_col_var = tk.StringVar()
@@ -59,7 +59,7 @@ class SDApp:
 
         # === 形容詞対名の正規表現編集 ===
         frame_regex = ttk.LabelFrame(
-            frame_row, text="Adjective Pair Regex (2 capture groups → ADJ1 - ADJ2)", padding=10
+            frame_row, text="Adjective Pair Regex (optional)", padding=10
         )
         frame_regex.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
@@ -83,7 +83,7 @@ class SDApp:
         paned.pack(fill=tk.BOTH, expand=False, padx=10, pady=5)
 
         # --- 左側: 形容詞対カラム選択 ---
-        frame_adj = ttk.LabelFrame(paned, text="3. Select Adjective Pair Columns", padding=10)
+        frame_adj = ttk.LabelFrame(paned, text="Select Adjective Pair Columns", padding=10)
         paned.add(frame_adj, weight=1)
 
         # スクロール可能なチェックボックス領域
@@ -105,7 +105,7 @@ class SDApp:
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # --- 中央: treeviewで各形容詞対のmeanとstdを表示 ---
-        frame_center = ttk.LabelFrame(paned, text="4. Adjective Pair Statistics", padding=10)
+        frame_center = ttk.LabelFrame(paned, text="Adjective Pair Statistics", padding=10)
         paned.add(frame_center, weight=1)
 
         # 因子数選択と実行
