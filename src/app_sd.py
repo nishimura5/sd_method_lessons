@@ -46,8 +46,16 @@ class SDApp:
         frame_obj.pack(side=tk.LEFT, fill=tk.X, padx=(0, 5))
 
         self.obj_col_var = tk.StringVar()
-        self.obj_col_combo = ttk.Combobox(frame_obj, textvariable=self.obj_col_var, state="readonly", width=40)
+        self.obj_col_combo = ttk.Combobox(frame_obj, textvariable=self.obj_col_var, state="readonly", width=16)
         self.obj_col_combo.pack(side=tk.LEFT)
+
+        # === 回答者名カラム選択（任意） ===
+        frame_resp = ttk.LabelFrame(frame_row, text="Respondent Column (optional)", padding=10)
+        frame_resp.pack(side=tk.LEFT, fill=tk.X, padx=(0, 5))
+
+        self.resp_col_var = tk.StringVar(value="")
+        self.resp_col_combo = ttk.Combobox(frame_resp, textvariable=self.resp_col_var, state="readonly", width=16)
+        self.resp_col_combo.pack(side=tk.LEFT)
 
         # === 形容詞対名の正規表現編集 ===
         frame_regex = ttk.LabelFrame(
@@ -188,6 +196,10 @@ class SDApp:
         if columns:
             self.obj_col_combo.current(0)
 
+        # 回答者名カラム候補を設定（空欄 + 全カラム）
+        self.resp_col_combo["values"] = [""] + columns
+        self.resp_col_var.set("")
+
         # 数値カラムを形容詞対候補としてチェックボックス表示
         self._populate_checkboxes()
 
@@ -313,8 +325,12 @@ class SDApp:
             )
 
             # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
+            resp_col = self.resp_col_var.get()
+            if resp_col:
+                factor_score_df[resp_col] = self.df[resp_col].values
             factor_score_df[obj_col] = self.df[obj_col].values
-            score_df = factor_score_df.groupby(obj_col).mean()
+            group_cols = [resp_col, obj_col] if resp_col else [obj_col]
+            score_df = factor_score_df.groupby(group_cols).mean()
             # Sort factors
             loading_df["max_abs_loading"] = loading_df.abs().max(axis=1)
             loading_df["best_factor"] = loading_df.abs().idxmax(axis=1)
