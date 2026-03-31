@@ -12,5 +12,8 @@ dependencies = [
     "scipy>=1.17.0",
 ]
 
+[tool.uv]
+exclude-newer = "30 days"
+
 [tool.ruff]
 line-length = 120
