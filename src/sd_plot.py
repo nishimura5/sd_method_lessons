@@ -4,10 +4,13 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 
-def plot_factor_loadings(loading_df, factor_names, title):
+def plot_factor_loadings(loading_df, factor_names, title, inverted_rows=None):
     plt.imshow(loading_df.values, aspect="auto", vmin=-1, vmax=1, cmap="coolwarm")
     plt.xticks(range(loading_df.shape[1]), loading_df.columns, rotation=0)
-    plt.yticks(range(loading_df.shape[0]), loading_df.index)
+    y_labels = list(loading_df.index)
+    if inverted_rows is not None and len(inverted_rows) == len(y_labels):
+        y_labels = [f"{label}*" if inverted else str(label) for label, inverted in zip(y_labels, inverted_rows)]
+    plt.yticks(range(loading_df.shape[0]), y_labels)
     for y in range(loading_df.shape[0]):
         for x in range(loading_df.shape[1]):
             plt.text(x, y, f"{loading_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=8)

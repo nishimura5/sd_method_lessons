@@ -58,9 +58,7 @@ class SDApp:
         self.resp_col_combo.pack(side=tk.LEFT)
 
         # === 形容詞対名の正規表現編集 ===
-        frame_regex = ttk.LabelFrame(
-            frame_row, text="Adjective Pair Regex (optional)", padding=10
-        )
+        frame_regex = ttk.LabelFrame(frame_row, text="Adjective Pair Regex (optional)", padding=10)
         frame_regex.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.regex_var = tk.StringVar(value="")
@@ -68,7 +66,7 @@ class SDApp:
         regex_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         ToolTip(
             regex_entry,
-            '【Example】\n  original: "Q1_warm_cold"\n  regex: Q\\d+_(.+)_(.+)\n  result: warm - cold',
+            '[Example]\n  original: "Q1_warm_cold"\n  regex: Q\\d+_(.+)_(.+)\n  result: warm - cold',
         )
         ttk.Button(frame_regex, text="Apply", command=self._apply_regex).pack(side=tk.LEFT, padx=(0, 15))
 
@@ -366,12 +364,14 @@ class SDApp:
             title = f"Factor Loading Matrix ({rotation_label})"
             # 反転を反映したコピーを作成
             plot_df = self.loading_df.copy()
-            for col in plot_df.index:
+            original_cols = list(plot_df.index)
+            for col in original_cols:
                 if self.invert_map.get(col, False):
                     plot_df.loc[col] = -plot_df.loc[col]
             # 表示名に変換
-            plot_df.index = [self._format_adj_name(col) for col in plot_df.index]
-            plot_factor_loadings(plot_df, self.factor_names, title=title)
+            plot_df.index = [self._format_adj_name(col) for col in original_cols]
+            inverted_rows = [self.invert_map.get(col, False) for col in original_cols]
+            plot_factor_loadings(plot_df, self.factor_names, title=title, inverted_rows=inverted_rows)
 
     def _export_csv(self):
         if self.score_df is None:
