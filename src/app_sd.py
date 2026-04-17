@@ -22,6 +22,7 @@ class SDApp:
         self.loading_df = None
         self.score_df = None
         self.factor_names = None
+        self.tar_obj_table = {}    # 分析対象の刺激名のホワイトリスト、{"colname": [obj1, obj2, ...], ...} の形式
         self.invert_map = {}
 
         set_japanese_font()
@@ -38,7 +39,7 @@ class SDApp:
         )
         ttk.Button(frame_file, text="Browse", command=self._select_file).pack(side=tk.LEFT)
 
-        # === 刺激名カラム選択 + 正規表現編集 ===
+        # === 刺激名カラム選択 ===
         frame_row = ttk.Frame(self.root)
         frame_row.pack(fill=tk.X, padx=10, pady=5)
 
@@ -48,6 +49,9 @@ class SDApp:
         self.obj_col_var = tk.StringVar()
         self.obj_col_combo = ttk.Combobox(frame_obj, textvariable=self.obj_col_var, state="readonly", width=16)
         self.obj_col_combo.pack(side=tk.LEFT)
+
+        # === 刺激名フィルターダイアログを開くボタン ===
+        ttk.Button(frame_obj, text="Filter...", command=self._open_stimulus_filter_dialog).pack(side=tk.LEFT, padx=(5, 0))
 
         # === 回答者名カラム選択（任意） ===
         frame_resp = ttk.LabelFrame(frame_row, text="Respondent Column (optional)", padding=10)
@@ -62,7 +66,7 @@ class SDApp:
         frame_regex.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.regex_var = tk.StringVar(value="")
-        regex_entry = ttk.Entry(frame_regex, textvariable=self.regex_var, width=30)
+        regex_entry = ttk.Entry(frame_regex, textvariable=self.regex_var, width=20)
         regex_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         ToolTip(
             regex_entry,
@@ -235,6 +239,40 @@ class SDApp:
             pass
         return col
 
+    def _open_stimulus_filter_dialog(self):
+        """分析対象の刺激を選択するダイアログ"""
+        if self.df is None:
+            messagebox.showwarning("Warning", "Please load a CSV file first.")
+            return
+        obj_col = self.obj_col_var.get()
+        print(self.tar_obj_table.keys())
+        if obj_col not in self.tar_obj_table.keys():
+            self.tar_obj_table[obj_col] = sorted(self.df[obj_col].unique().tolist())
+        all_obj_list = sorted(self.df[obj_col].unique().tolist())
+        tar_obj_list = self.tar_obj_table.get(obj_col, all_obj_list)
+
+        # ダイアログを作成
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Filter Stimuli")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        frame = ttk.Frame(dialog, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+        # 刺激のチェックボックスを配置
+        check_vars = {}
+        for obj in all_obj_list:
+            var = tk.BooleanVar(value=obj in tar_obj_list)
+            check_vars[obj] = var
+            cb = ttk.Checkbutton(frame, text=obj, variable=var)
+            cb.pack(anchor=tk.W, pady=1, padx=10)
+        # OKボタン
+        def on_ok():
+            obj_list = [obj for obj, var in check_vars.items() if var.get()]
+            self.tar_obj_table[obj_col] = obj_list
+            dialog.destroy()
+        ttk.Button(frame, text="OK", command=on_ok).pack(pady=10)
+
+
     def _apply_regex(self):
         """正規表現を適用してTreeviewの表示名を更新する。"""
         self._update_stats_tree()
@@ -318,15 +356,17 @@ class SDApp:
             # 全回答者データで因子分析を実行
             factor_names = [f"Factor{i + 1}" for i in range(n_factors)]
             self.use_varimax = self.varimax_var.get()
+            tar_stims = self.tar_obj_table.get(obj_col, self.df[obj_col].unique())
+            filtered_df = self.df[self.df[obj_col].isin(tar_stims)]
             loading_df, factor_score_df = factor_analysis(
-                self.df, selected_cols, factor_names, varimax=self.use_varimax
+                filtered_df, selected_cols, factor_names, varimax=self.use_varimax
             )
 
             # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
             resp_col = self.resp_col_var.get()
             if resp_col:
-                factor_score_df[resp_col] = self.df[resp_col].values
-            factor_score_df[obj_col] = self.df[obj_col].values
+                factor_score_df[resp_col] = filtered_df[resp_col].values
+            factor_score_df[obj_col] = filtered_df[obj_col].values
             group_cols = [resp_col, obj_col] if resp_col else [obj_col]
             score_df = factor_score_df.groupby(group_cols).mean()
             # Sort factors
