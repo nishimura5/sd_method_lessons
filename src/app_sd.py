@@ -245,7 +245,6 @@ class SDApp:
             messagebox.showwarning("Warning", "Please load a CSV file first.")
             return
         obj_col = self.obj_col_var.get()
-        print(self.tar_obj_table.keys())
         if obj_col not in self.tar_obj_table.keys():
             self.tar_obj_table[obj_col] = sorted(self.df[obj_col].unique().tolist())
         all_obj_list = sorted(self.df[obj_col].unique().tolist())
