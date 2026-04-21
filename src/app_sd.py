@@ -27,6 +27,7 @@ class SDApp:
         self.loading_df = None
         self.score_df = None
         self.factor_names = None
+        self.corr_df = None
         self.tar_obj_table = {}  # 分析対象の刺激名のホワイトリスト、{"colname": [obj1, obj2, ...], ...} の形式
         self.invert_map = {}
 
@@ -134,9 +135,18 @@ class SDApp:
         # defaultでは3を選択
         self.n_factors_combo.current(2)
 
-        self.varimax_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(frame_exec, text="Varimax", variable=self.varimax_var).pack(side=tk.LEFT, padx=(0, 15))
-        self.use_varimax = self.varimax_var.get()
+        ttk.Label(frame_exec, text="Rotation:").pack(side=tk.LEFT)
+        self.rotation_var = tk.StringVar(value="varimax")
+        self.rotation_combo = ttk.Combobox(
+            frame_exec,
+            textvariable=self.rotation_var,
+            state="readonly",
+            values=["promax", "varimax", "No rotation"],
+            width=12,
+        )
+        self.rotation_combo.pack(side=tk.LEFT, padx=(5, 15))
+        self.rotation_combo.current(0)
+        self.current_rotation = self.rotation_var.get()
 
         ttk.Button(frame_exec, text="Run Analysis", command=self._run_analysis).pack(side=tk.LEFT)
 
@@ -177,7 +187,7 @@ class SDApp:
             frame_bottom_left,
             "Parallel analysis compares eigenvalues from your data with those from random data.\n"
             'Selecting "PA" in Factors uses the number of factors suggested by this method.',
-            position ="top",
+            position="top",
         )
         self.parallel_text = tk.Text(frame_bottom_left, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
         scroll_y = ttk.Scrollbar(frame_bottom_left, orient=tk.VERTICAL, command=self.parallel_text.yview)
@@ -403,17 +413,20 @@ class SDApp:
 
             # 全回答者データで因子分析を実行
             factor_names = [f"Factor{i + 1}" for i in range(n_factors)]
-            self.use_varimax = self.varimax_var.get()
+            self.current_rotation = self.rotation_var.get()
 
-            loading_df, factor_score_df = factor_analysis(
-                filtered_df, selected_cols, factor_names, varimax=self.use_varimax
+            loading_df, factor_score_df, corr_df = factor_analysis(
+                filtered_df,
+                selected_cols,
+                factor_names,
+                rotation=self.current_rotation,
             )
 
             # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
             resp_col = self.resp_col_var.get()
             if resp_col:
-                factor_score_df[resp_col] = filtered_df[resp_col].values
-            factor_score_df[obj_col] = filtered_df[obj_col].values
+                factor_score_df[resp_col] = filtered_df.loc[factor_score_df.index, resp_col].values
+            factor_score_df[obj_col] = filtered_df.loc[factor_score_df.index, obj_col].values
             group_cols = [resp_col, obj_col] if resp_col else [obj_col]
             score_df = factor_score_df.groupby(group_cols).mean()
             # Sort factors
@@ -435,6 +448,7 @@ class SDApp:
 
             self.loading_df = loading_df
             self.score_df = score_df
+            self.corr_df = corr_df
             self.factor_names = factor_names
             self.btn_plot_loadings.config(state=tk.NORMAL)
             self.btn_export_loadings.config(state=tk.NORMAL)
@@ -448,7 +462,12 @@ class SDApp:
 
     def _plot_loadings(self):
         if self.loading_df is not None:
-            rotation_label = "Varimax Rotation" if self.use_varimax else "No Rotation"
+            if self.current_rotation == "varimax":
+                rotation_label = "Varimax Rotation"
+            elif self.current_rotation == "promax":
+                rotation_label = "Promax Rotation"
+            else:
+                rotation_label = "No Rotation"
             title = f"Factor Loading Matrix ({rotation_label})"
             # 反転を反映したコピーを作成
             plot_df = self.loading_df.copy()
@@ -459,7 +478,13 @@ class SDApp:
             # 表示名に変換
             plot_df.index = [self._format_adj_name(col) for col in original_cols]
             inverted_rows = [self.invert_map.get(col, False) for col in original_cols]
-            plot_factor_loadings(plot_df, self.factor_names, title=title, inverted_rows=inverted_rows)
+            plot_factor_loadings(
+                plot_df,
+                self.factor_names,
+                title=title,
+                inverted_rows=inverted_rows,
+                promax_corr_df=self.corr_df if self.current_rotation == "promax" else None,
+            )
 
     def _export_loadings_csv(self):
         if self.loading_df is None:

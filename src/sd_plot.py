@@ -4,19 +4,37 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 
-def plot_factor_loadings(loading_df, factor_names, title, inverted_rows=None):
-    plt.imshow(loading_df.values, aspect="auto", vmin=-1, vmax=1, cmap="coolwarm")
-    plt.xticks(range(loading_df.shape[1]), loading_df.columns, rotation=0)
+def plot_factor_loadings(loading_df, factor_names, title, inverted_rows=None, promax_corr_df=None):
+    show_corr = promax_corr_df is not None
+    fig, axes = plt.subplots(1, 2 if show_corr else 1, figsize=(12, 6) if show_corr else None)
+
+    ax_loadings = axes[0] if show_corr else axes
+    ax_loadings.imshow(loading_df.values, aspect="auto", vmin=-1, vmax=1, cmap="coolwarm")
+    ax_loadings.set_xticks(range(loading_df.shape[1]))
+    ax_loadings.set_xticklabels(loading_df.columns, rotation=0)
     y_labels = list(loading_df.index)
     if inverted_rows is not None and len(inverted_rows) == len(y_labels):
         y_labels = [f"{label}*" if inverted else str(label) for label, inverted in zip(y_labels, inverted_rows)]
-    plt.yticks(range(loading_df.shape[0]), y_labels)
+    ax_loadings.set_yticks(range(loading_df.shape[0]))
+    ax_loadings.set_yticklabels(y_labels)
     for y in range(loading_df.shape[0]):
         for x in range(loading_df.shape[1]):
-            plt.text(x, y, f"{loading_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=8)
+            ax_loadings.text(x, y, f"{loading_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=8)
+    ax_loadings.set_title(title if not show_corr else f"{title} - Factor Loadings")
 
-    plt.title(title)
-    plt.gcf().canvas.manager.set_window_title("Factor Loading Matrix")
+    if show_corr:
+        ax_corr = axes[1]
+        ax_corr.imshow(promax_corr_df.values, aspect="equal", vmin=-1, vmax=1, cmap="coolwarm")
+        ax_corr.set_xticks(range(promax_corr_df.shape[1]))
+        ax_corr.set_xticklabels(promax_corr_df.columns, rotation=0)
+        ax_corr.set_yticks(range(promax_corr_df.shape[0]))
+        ax_corr.set_yticklabels(promax_corr_df.index)
+        for y in range(promax_corr_df.shape[0]):
+            for x in range(promax_corr_df.shape[1]):
+                ax_corr.text(x, y, f"{promax_corr_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=8)
+        ax_corr.set_title("Promax Factor Correlations")
+
+    plt.gcf().canvas.manager.set_window_title("Factor Loading Matrix" if not show_corr else "Factor Analysis Plots")
     plt.tight_layout()
     plt.show()
 

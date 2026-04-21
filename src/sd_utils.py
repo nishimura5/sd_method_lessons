@@ -3,7 +3,7 @@ import platform
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import FactorAnalysis
+from factor_analyzer import FactorAnalyzer
 from sklearn.preprocessing import StandardScaler
 
 
@@ -87,31 +87,37 @@ def print_parallel_analysis_summary(src_df, tar_cols, n_iter=500, percentile=95,
     return n_factors, "\n".join(summary_lines)
 
 
-def factor_analysis(src_df, tar_cols, factor_names, varimax=False):
-    """因子分析を実行し、Varimax回転を適用して因子負荷量と因子得点を返す関数
+def factor_analysis(src_df, tar_cols, factor_names, rotation="No rotation"):
+    """因子分析を実行し、指定回転を適用して因子負荷量と因子得点を返す関数
     Args:
         src_df (pd.DataFrame): 元のデータフレーム
         tar_cols (list): 因子分析に使用するカラム名のリスト
         factor_names (list): 因子名のリスト（例: ["因子1", "因子2", "因子3"]）
-        varimax (bool): Varimax回転を適用するかどうか
+        rotation (str): 回転法。"No rotation" / "varimax" / "promax"
     Returns:
-        tuple: (rotated_loading_df, factor_score_df)
+        tuple: (rotated_loading_df, factor_score_df, promax_msg)
             rotated_loading_df (pd.DataFrame): 因子負荷量
             factor_score_df (pd.DataFrame): 因子得点
+            corr_df (pd.DataFrame or None): promax回転の因子相関行列（rotation="promax"の場合のみ）
     """
     n_factors = len(factor_names)
-    vals = src_df[tar_cols].values
+    vals = src_df[tar_cols].dropna().values
     standard_vals = StandardScaler().fit_transform(vals)
-    if varimax:
-        fa_varimax = FactorAnalysis(n_components=n_factors, rotation="varimax", random_state=0)
-        fa_varimax.fit(standard_vals)
-        rotated_loadings = fa_varimax.components_.T
-        factor_scores = fa_varimax.transform(standard_vals)
+    if rotation == "No rotation":
+        fa_rotation = None
     else:
-        fa = FactorAnalysis(n_components=n_factors, random_state=0)
-        fa.fit(standard_vals)
-        rotated_loadings = fa.components_.T
-        factor_scores = fa.transform(standard_vals)
+        fa_rotation = rotation
+
+    fa = FactorAnalyzer(n_factors=n_factors, rotation=fa_rotation, method="minres")
+    fa.fit(standard_vals)
+    rotated_loadings = fa.loadings_
+    factor_scores = fa.transform(standard_vals)
     rotated_loading_df = pd.DataFrame(rotated_loadings, index=tar_cols, columns=factor_names)
-    factor_score_df = pd.DataFrame(factor_scores, columns=factor_names, index=src_df.index)
-    return rotated_loading_df, factor_score_df
+    valid_index = src_df[tar_cols].dropna().index
+    factor_score_df = pd.DataFrame(factor_scores, columns=factor_names, index=valid_index)
+    # promax回転の場合、相関係数を取得
+    if rotation == "promax":
+        # これは因子負荷行列のplotの横に表示するときに使用される
+        corr_df = pd.DataFrame(fa.phi_, index=factor_names, columns=factor_names).round(2)
+
+    return rotated_loading_df, factor_score_df, corr_df if rotation == "promax" else None
