@@ -4,9 +4,10 @@ import tkinter as tk
 class ToolTip:
     """ウィジェットにマウスホバーで表示されるツールチップ。"""
 
-    def __init__(self, widget, text):
+    def __init__(self, widget, text, position="bottom"):
         self.widget = widget
         self.text = text
+        self.position = position
         self.tipwindow = None
         widget.bind("<Enter>", self._show)
         widget.bind("<Leave>", self._hide)
@@ -15,10 +16,8 @@ class ToolTip:
         if self.tipwindow:
             return
         x = self.widget.winfo_rootx() + 20
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 5
         self.tipwindow = tw = tk.Toplevel(self.widget)
         tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
         label = tk.Label(
             tw,
             text=self.text,
@@ -31,6 +30,14 @@ class ToolTip:
             pady=6,
         )
         label.pack()
+        tw.update_idletasks()
+
+        if self.position == "top":
+            y = self.widget.winfo_rooty() - tw.winfo_height() - 5
+        else:
+            y = self.widget.winfo_rooty() + self.widget.winfo_height() + 5
+
+        tw.wm_geometry(f"+{x}+{y}")
 
     def _hide(self, event=None):
         if self.tipwindow:
