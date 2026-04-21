@@ -1,5 +1,7 @@
 import re
+
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 import sd_utils
@@ -16,6 +18,19 @@ corr_df = src_df[tar_cols].corr()
 print("形容詞対どうしの相関行列:")
 print(corr_df.round(3))
 
+# --- 固有値・寄与率をDataFrameで管理 ---
+# 相関行列は対称行列なので eigvalsh を使う
+eigenvalues = np.sort(np.linalg.eigvalsh(corr_df.values))[::-1]
+
+eig_df = pd.DataFrame({"固有値": eigenvalues})
+eig_df.index = np.arange(1, len(eig_df) + 1)
+eig_df.index.name = "因子候補"
+eig_df["寄与率"] = eig_df["固有値"] / eig_df["固有値"].sum()
+eig_df["累積寄与率"] = eig_df["寄与率"].cumsum()
+
+print("\n固有値・寄与率・累積寄与率:")
+print(eig_df.round(4))
+
 plt.imshow(corr_df.values, aspect="equal", vmin=-1, vmax=1, cmap="coolwarm")
 plt.colorbar(label="相関係数")
 scale_labels = [
@@ -24,7 +39,6 @@ scale_labels = [
 plt.xticks(range(len(scale_labels)), scale_labels, rotation=90, fontsize=8)
 plt.yticks(range(len(scale_labels)), scale_labels, rotation=0, fontsize=8)
 
-# Annotate cells
 for y in range(corr_df.shape[0]):
     for x in range(corr_df.shape[1]):
         plt.text(x, y, f"{corr_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=6)
