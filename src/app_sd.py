@@ -80,7 +80,8 @@ class SDApp:
             regex_entry,
             '[Example]\n  original: "Q1_warm_cold"\n  regex: Q\\d+_(.+)_(.+)\n  result: warm - cold',
         )
-        ttk.Button(frame_regex, text="Apply", command=self._apply_regex).pack(side=tk.LEFT, padx=(0, 15))
+        self.btn_apply_reg = ttk.Button(frame_regex, text="Apply", command=self._apply_regex, state=tk.DISABLED)
+        self.btn_apply_reg.pack(side=tk.LEFT)
 
         ttk.Label(frame_regex, text="Scale:").pack(side=tk.LEFT)
         self.scale_var = tk.StringVar(value="7")
@@ -94,7 +95,7 @@ class SDApp:
 
         # --- 左側: 形容詞対カラム選択 ---
         frame_adj = ttk.LabelFrame(paned, text="Select Adjective Pair Columns", padding=10)
-        paned.add(frame_adj, weight=1)
+        paned.add(frame_adj, weight=4)
 
         # スクロール可能なチェックボックス領域
         canvas = tk.Canvas(frame_adj, highlightthickness=0)
@@ -116,7 +117,14 @@ class SDApp:
 
         # --- 中央: treeviewで各形容詞対のmeanとstdを表示 ---
         frame_center = ttk.LabelFrame(paned, text="Adjective Pair Statistics", padding=10)
-        paned.add(frame_center, weight=1)
+        paned.add(frame_center, weight=6)
+
+        def _init_sash(event, p=paned, _done=[False]):
+            if not _done[0] and p.winfo_width() > 1:
+                _done[0] = True
+                p.sashpos(0, int(p.winfo_width() * 0.4))
+
+        paned.bind("<Configure>", _init_sash)
 
         # 因子数選択と実行
         frame_exec = ttk.Frame(frame_center)
@@ -206,7 +214,7 @@ class SDApp:
         self.btn_plot_pca = ttk.Button(frame_plot, text="Plot PCA", command=self._plot_pca, state=tk.DISABLED)
         self.btn_plot_pca.pack(side=tk.LEFT)
 
-        self.btn_export_csv = ttk.Button(frame_plot, text="Export CSV", command=self._export_csv, state=tk.DISABLED)
+        self.btn_export_csv = ttk.Button(frame_plot, text="Export Scores", command=self._export_csv, state=tk.DISABLED)
         self.btn_export_csv.pack(side=tk.LEFT, padx=(15, 0))
 
         # 因子負荷行列・因子得点の表示領域
@@ -450,6 +458,7 @@ class SDApp:
             self.score_df = score_df
             self.corr_df = corr_df
             self.factor_names = factor_names
+            self.btn_apply_reg.config(state=tk.NORMAL)
             self.btn_plot_loadings.config(state=tk.NORMAL)
             self.btn_export_loadings.config(state=tk.NORMAL)
             self.btn_plot_pca.config(state=tk.NORMAL)
