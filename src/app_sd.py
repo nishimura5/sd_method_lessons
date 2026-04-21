@@ -22,7 +22,7 @@ class SDApp:
         self.loading_df = None
         self.score_df = None
         self.factor_names = None
-        self.tar_obj_table = {}    # 分析対象の刺激名のホワイトリスト、{"colname": [obj1, obj2, ...], ...} の形式
+        self.tar_obj_table = {}  # 分析対象の刺激名のホワイトリスト、{"colname": [obj1, obj2, ...], ...} の形式
         self.invert_map = {}
 
         set_japanese_font()
@@ -51,7 +51,9 @@ class SDApp:
         self.obj_col_combo.pack(side=tk.LEFT)
 
         # === 刺激名フィルターダイアログを開くボタン ===
-        ttk.Button(frame_obj, text="Filter...", command=self._open_stimulus_filter_dialog).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(frame_obj, text="Filter...", command=self._open_stimulus_filter_dialog).pack(
+            side=tk.LEFT, padx=(5, 0)
+        )
 
         # === 回答者名カラム選択（任意） ===
         frame_resp = ttk.LabelFrame(frame_row, text="Respondent Column (optional)", padding=10)
@@ -131,6 +133,10 @@ class SDApp:
             frame_exec, text="Plot Loadings", command=self._plot_loadings, state=tk.DISABLED
         )
         self.btn_plot_loadings.pack(side=tk.LEFT, padx=(15, 5))
+        self.btn_export_loadings = ttk.Button(
+            frame_exec, text="Export Loadings", command=self._export_loadings_csv, state=tk.DISABLED
+        )
+        self.btn_export_loadings.pack(side=tk.LEFT)
 
         cols = ("mean", "std")
         self.stats_tree = ttk.Treeview(frame_center, columns=cols, show="tree headings", selectmode="browse")
@@ -264,13 +270,14 @@ class SDApp:
             check_vars[obj] = var
             cb = ttk.Checkbutton(frame, text=obj, variable=var)
             cb.pack(anchor=tk.W, pady=1, padx=10)
+
         # OKボタン
         def on_ok():
             obj_list = [obj for obj, var in check_vars.items() if var.get()]
             self.tar_obj_table[obj_col] = obj_list
             dialog.destroy()
-        ttk.Button(frame, text="OK", command=on_ok).pack(pady=10)
 
+        ttk.Button(frame, text="OK", command=on_ok).pack(pady=10)
 
     def _apply_regex(self):
         """正規表現を適用してTreeviewの表示名を更新する。"""
@@ -389,6 +396,7 @@ class SDApp:
             self.score_df = score_df
             self.factor_names = factor_names
             self.btn_plot_loadings.config(state=tk.NORMAL)
+            self.btn_export_loadings.config(state=tk.NORMAL)
             self.btn_plot_pca.config(state=tk.NORMAL)
             self.btn_export_csv.config(state=tk.NORMAL)
 
@@ -411,6 +419,31 @@ class SDApp:
             plot_df.index = [self._format_adj_name(col) for col in original_cols]
             inverted_rows = [self.invert_map.get(col, False) for col in original_cols]
             plot_factor_loadings(plot_df, self.factor_names, title=title, inverted_rows=inverted_rows)
+
+    def _export_loadings_csv(self):
+        if self.loading_df is None:
+            return
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        path = filedialog.asksaveasfilename(
+            title="Export Factor Loadings",
+            initialdir=desktop,
+            initialfile="factor_loadings.csv",
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+        )
+        if not path:
+            return
+        export_df = self.loading_df.copy()
+        # _plot_loadings と同じ手順で反転と表示名変換を適用
+        original_cols = list(export_df.index)
+        for col in original_cols:
+            if self.invert_map.get(col, False):
+                export_df.loc[col] = -export_df.loc[col]
+        export_df.index = [self._format_adj_name(col) for col in original_cols]
+        export_df.index.name = "Adjective pair"
+        export_df.round(3).to_csv(path, encoding="utf-8-sig")
+
+        messagebox.showinfo("Export", f"Saved to:\n{path}")
 
     def _export_csv(self):
         if self.score_df is None:
