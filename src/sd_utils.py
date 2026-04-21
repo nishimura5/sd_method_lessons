@@ -1,9 +1,11 @@
 import platform
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from sklearn.decomposition import FactorAnalysis
 from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
+
 
 def get_japanese_monospace_font():
     SYSTEM_NAME = platform.system()
@@ -12,6 +14,7 @@ def get_japanese_monospace_font():
     else:  # Windows
         return "MS Gothic"
 
+
 def get_japanese_proportional_font():
     SYSTEM_NAME = platform.system()
     if SYSTEM_NAME == "Darwin":  # macOS
@@ -19,10 +22,70 @@ def get_japanese_proportional_font():
     else:  # Windows
         return "Yu Gothic"
 
+
 def set_japanese_font():
     pd.set_option("display.unicode.east_asian_width", True)
     # plt font settings
     plt.rcParams["font.family"] = get_japanese_proportional_font()
+
+
+def run_parallel_analysis(src_df, tar_cols, n_iter=500, percentile=95, random_state=0):
+    """併行分析を実行し、推奨因子数と比較表を返す。"""
+    vals_df = src_df[tar_cols].dropna()
+    if vals_df.empty:
+        raise ValueError("No valid rows were found after dropping missing values.")
+
+    vals = vals_df.values
+    n_samples, n_vars = vals.shape
+    if n_samples < 3:
+        raise ValueError("At least 3 samples are required for parallel analysis.")
+    if n_vars < 2:
+        raise ValueError("At least 2 variables are required for parallel analysis.")
+
+    standard_vals = StandardScaler().fit_transform(vals)
+    obs_corr = np.corrcoef(standard_vals, rowvar=False)
+    obs_eigs = np.sort(np.linalg.eigvalsh(obs_corr))[::-1]
+
+    rng = np.random.default_rng(random_state)
+    random_eigs = np.empty((n_iter, n_vars), dtype=float)
+    for i in range(n_iter):
+        simulated = rng.standard_normal((n_samples, n_vars))
+        sim_corr = np.corrcoef(simulated, rowvar=False)
+        random_eigs[i, :] = np.sort(np.linalg.eigvalsh(sim_corr))[::-1]
+
+    crit_eigs = np.percentile(random_eigs, percentile, axis=0)
+    retain_mask = obs_eigs > crit_eigs
+    n_factors = int(retain_mask.sum())
+
+    comp_df = pd.DataFrame(
+        {
+            "Observed": obs_eigs,
+            f"Rand.({percentile}%)": crit_eigs,
+            "Diff": obs_eigs - crit_eigs,
+            "Retain": np.where(retain_mask, "Yes", "No"),
+        }
+    )
+    comp_df.index = np.arange(1, n_vars + 1)
+    comp_df.index.name = "Factor"
+    return n_factors, comp_df
+
+
+def print_parallel_analysis_summary(src_df, tar_cols, n_iter=500, percentile=95, random_state=0, digits=3):
+    """併行分析の結果を表示用文字列として返す。"""
+    n_factors, comp_df = run_parallel_analysis(
+        src_df,
+        tar_cols,
+        n_iter=n_iter,
+        percentile=percentile,
+        random_state=random_state,
+    )
+    summary_lines = [
+        f"Recommended factors (Parallel Analysis): {n_factors}",
+        "",
+        comp_df.round(digits).to_string(),
+    ]
+    return n_factors, "\n".join(summary_lines)
+
 
 def factor_analysis(src_df, tar_cols, factor_names, varimax=False):
     """因子分析を実行し、Varimax回転を適用して因子負荷量と因子得点を返す関数

@@ -6,7 +6,12 @@ from tkinter import filedialog, messagebox, ttk
 import pandas as pd
 
 from sd_plot import plot_factor_loadings, plot_pca
-from sd_utils import factor_analysis, get_japanese_monospace_font, set_japanese_font
+from sd_utils import (
+    factor_analysis,
+    get_japanese_monospace_font,
+    print_parallel_analysis_summary,
+    set_japanese_font,
+)
 from tooltip import ToolTip
 
 
@@ -118,10 +123,16 @@ class SDApp:
 
         ttk.Label(frame_exec, text="Factors:").pack(side=tk.LEFT)
         self.n_factors_var = tk.StringVar(value="3")
-        factor_combo = ttk.Combobox(
-            frame_exec, textvariable=self.n_factors_var, state="readonly", values=["2", "3", "4", "5"], width=5
+        self.n_factors_combo = ttk.Combobox(
+            frame_exec,
+            textvariable=self.n_factors_var,
+            state="readonly",
+            values=["1", "2", "3", "4", "5", "PA"],
+            width=5,
         )
-        factor_combo.pack(side=tk.LEFT, padx=(5, 15))
+        self.n_factors_combo.pack(side=tk.LEFT, padx=(5, 10))
+        # defaultでは3を選択
+        self.n_factors_combo.current(2)
 
         self.varimax_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(frame_exec, text="Varimax", variable=self.varimax_var).pack(side=tk.LEFT, padx=(0, 15))
@@ -153,11 +164,33 @@ class SDApp:
         stats_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
         # --- 下部: 結果表示 ---
-        frame_bottom = ttk.LabelFrame(self.root, text="Factor Scores by Stimulus", padding=10)
-        frame_bottom.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        frame_bottom = ttk.Frame(self.root)
+        frame_bottom.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
+        frame_bottom.columnconfigure(0, weight=4, uniform="bottom_split")
+        frame_bottom.columnconfigure(1, weight=6, uniform="bottom_split")
+        frame_bottom.rowconfigure(0, weight=1)
+
+        frame_bottom_left = ttk.LabelFrame(frame_bottom, text="Parallel Analysis", padding=10)
+        frame_bottom_left.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        frame_bottom_left.grid_propagate(False)
+        ToolTip(
+            frame_bottom_left,
+            "Parallel analysis compares eigenvalues from your data with those from random data.\n"
+            'Selecting "PA" in Factors uses the number of factors suggested by this method.',
+            position ="top",
+        )
+        self.parallel_text = tk.Text(frame_bottom_left, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
+        scroll_y = ttk.Scrollbar(frame_bottom_left, orient=tk.VERTICAL, command=self.parallel_text.yview)
+        self.parallel_text.configure(yscrollcommand=scroll_y.set)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        self.parallel_text.pack(fill=tk.BOTH, expand=True)
+
+        frame_bottom_right = ttk.LabelFrame(frame_bottom, text="Factor Scores by Stimulus", padding=10)
+        frame_bottom_right.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+        frame_bottom_right.grid_propagate(False)
 
         # グラフ描画ボタン
-        frame_plot = ttk.Frame(frame_bottom)
+        frame_plot = ttk.Frame(frame_bottom_right)
         frame_plot.pack(fill=tk.X, pady=(0, 5))
 
         self.btn_plot_pca = ttk.Button(frame_plot, text="Plot PCA", command=self._plot_pca, state=tk.DISABLED)
@@ -167,13 +200,10 @@ class SDApp:
         self.btn_export_csv.pack(side=tk.LEFT, padx=(15, 0))
 
         # 因子負荷行列・因子得点の表示領域
-        self.result_text = tk.Text(frame_bottom, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
-        scroll_y = ttk.Scrollbar(frame_bottom, orient=tk.VERTICAL, command=self.result_text.yview)
-        scroll_x = ttk.Scrollbar(frame_bottom, orient=tk.HORIZONTAL, command=self.result_text.xview)
-        self.result_text.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
-
+        self.result_text = tk.Text(frame_bottom_right, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
+        scroll_y = ttk.Scrollbar(frame_bottom_right, orient=tk.VERTICAL, command=self.result_text.yview)
+        self.result_text.configure(yscrollcommand=scroll_y.set)
         scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-        scroll_x.pack(side=tk.BOTTOM, fill=tk.X)
         self.result_text.pack(fill=tk.BOTH, expand=True)
 
     def _select_file(self):
@@ -349,21 +379,32 @@ class SDApp:
             messagebox.showwarning("Warning", "Please select at least one adjective pair column.")
             return
 
-        n_factors = int(self.n_factors_var.get())
-
-        if n_factors > len(selected_cols):
-            messagebox.showwarning(
-                "Warning",
-                f"Number of factors ({n_factors}) exceeds the number of selected columns ({len(selected_cols)}).",
-            )
-            return
-
         try:
+            tar_stims = self.tar_obj_table.get(obj_col, self.df[obj_col].unique())
+            filtered_df = self.df[self.df[obj_col].isin(tar_stims)]
+
+            suggested_factors, parallel_str = print_parallel_analysis_summary(filtered_df, selected_cols)
+
+            self.parallel_text.delete("1.0", tk.END)
+            self.parallel_text.insert(tk.END, parallel_str)
+
+            max_factors = len(selected_cols)
+            numeric_max = min(max_factors, 10)
+
+            selected_factor_mode = self.n_factors_var.get()
+            if selected_factor_mode == "PA":
+                n_factors = min(max(suggested_factors, 1), 10, max_factors)
+            elif selected_factor_mode.isdigit():
+                n_factors = min(max(int(selected_factor_mode), 1), numeric_max)
+                self.n_factors_var.set(str(n_factors))
+            else:
+                self.n_factors_var.set("PA")
+                n_factors = min(max(suggested_factors, 1), 10, max_factors)
+
             # 全回答者データで因子分析を実行
             factor_names = [f"Factor{i + 1}" for i in range(n_factors)]
             self.use_varimax = self.varimax_var.get()
-            tar_stims = self.tar_obj_table.get(obj_col, self.df[obj_col].unique())
-            filtered_df = self.df[self.df[obj_col].isin(tar_stims)]
+
             loading_df, factor_score_df = factor_analysis(
                 filtered_df, selected_cols, factor_names, varimax=self.use_varimax
             )
