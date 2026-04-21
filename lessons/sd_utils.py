@@ -35,7 +35,7 @@ def set_japanese_font():
     if SYSTEM_NAME == "Darwin":  # macOS
         plt.rcParams["font.family"] = "Hiragino Sans"
     else:
-        plt.rcParams["font.family"] = "YuGothic"
+        plt.rcParams["font.family"] = "Yu Gothic"
 
 
 def factor_analysis_with_varimax(src_df, tar_cols, factor_names):
