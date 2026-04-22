@@ -40,3 +40,4 @@
 - matplotlib
 - scikit-learn
 - scipy
+- factor-analyzer
