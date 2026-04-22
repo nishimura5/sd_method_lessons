@@ -8,6 +8,7 @@ dependencies = [
     "factor-analyzer~=0.5.1",
     "matplotlib>=3.10.6",
     "numpy>=2.3.3",
+    "ordinalcorr~=0.7.0",
     "pandas>=3.0.1",
     "scikit-learn<1.6",
     "scipy>=1.17.0",

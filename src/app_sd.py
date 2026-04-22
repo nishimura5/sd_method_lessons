@@ -121,6 +121,15 @@ class SDApp:
 
         # --- 中央左: 併行分析表示 ---
         frame_parallel = ttk.LabelFrame(paned, text="Parallel Analysis", padding=10)
+        frame_corr = ttk.Frame(frame_parallel)
+        # pearsonとpolychoricを選択するcomboを追加
+        ttk.Label(frame_corr, text="Correlation:").pack(side=tk.LEFT, padx=(0, 2))
+        self.corr_var = tk.StringVar(value="pearson")
+        ttk.Combobox(
+            frame_corr, textvariable=self.corr_var, state="readonly", values=["pearson", "polychoric"], width=10
+        ).pack(side=tk.LEFT)
+
+        frame_corr.pack(side=tk.TOP, fill=tk.X, pady=5)
         paned.add(frame_parallel, weight=3)
         ToolTip(
             frame_parallel,
@@ -407,7 +416,9 @@ class SDApp:
             tar_stims = self.tar_obj_table.get(obj_col, self.df[obj_col].unique())
             filtered_df = self.df[self.df[obj_col].isin(tar_stims)]
 
-            suggested_factors, parallel_str = print_parallel_analysis_summary(filtered_df, selected_cols)
+            suggested_factors, parallel_str = print_parallel_analysis_summary(
+                filtered_df, selected_cols, corr=self.corr_var.get()
+            )
 
             self.parallel_text.delete("1.0", tk.END)
             self.parallel_text.insert(tk.END, parallel_str)
@@ -434,6 +445,7 @@ class SDApp:
                 selected_cols,
                 factor_names,
                 rotation=self.current_rotation,
+                corr=self.corr_var.get(),
             )
 
             # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
