@@ -50,7 +50,7 @@ class SDApp:
         frame_row.pack(fill=tk.X, padx=10, pady=5)
 
         frame_obj = ttk.LabelFrame(frame_row, text="Stimulus Column", padding=10)
-        frame_obj.pack(side=tk.LEFT, fill=tk.X, padx=(0, 5))
+        frame_obj.pack(side=tk.LEFT, fill=tk.X, padx=(5, 2))
 
         self.obj_col_var = tk.StringVar()
         self.obj_col_combo = ttk.Combobox(frame_obj, textvariable=self.obj_col_var, state="readonly", width=16)
@@ -83,10 +83,10 @@ class SDApp:
         self.btn_apply_reg = ttk.Button(frame_regex, text="Apply", command=self._apply_regex, state=tk.DISABLED)
         self.btn_apply_reg.pack(side=tk.LEFT)
 
-        ttk.Label(frame_regex, text="Scale:").pack(side=tk.LEFT)
+        ttk.Label(frame_regex, text="Scale:").pack(side=tk.LEFT, padx=(5, 2))
         self.scale_var = tk.StringVar(value="7")
         ttk.Combobox(frame_regex, textvariable=self.scale_var, state="readonly", values=["5", "7"], width=3).pack(
-            side=tk.LEFT, padx=(5, 0)
+            side=tk.LEFT,
         )
 
         ttk.Button(frame_row, text="Run Analysis", command=self._run_analysis, width=14).pack(
@@ -151,7 +151,7 @@ class SDApp:
         frame_exec = ttk.Frame(frame_center)
         frame_exec.pack(fill=tk.X, pady=(0, 5))
 
-        ttk.Label(frame_exec, text="Factors:").pack(side=tk.LEFT)
+        ttk.Label(frame_exec, text="Factors:").pack(side=tk.LEFT, padx=(0, 2))
         self.n_factors_var = tk.StringVar(value="3")
         self.n_factors_combo = ttk.Combobox(
             frame_exec,
@@ -160,11 +160,11 @@ class SDApp:
             values=["1", "2", "3", "4", "5", "PA"],
             width=4,
         )
-        self.n_factors_combo.pack(side=tk.LEFT, padx=(5, 10))
+        self.n_factors_combo.pack(side=tk.LEFT, padx=(0, 10))
         # defaultでは3を選択
         self.n_factors_combo.current(2)
 
-        ttk.Label(frame_exec, text="Rotation:").pack(side=tk.LEFT)
+        ttk.Label(frame_exec, text="Rotation:").pack(side=tk.LEFT, padx=(0, 2))
         self.rotation_var = tk.StringVar(value="varimax")
         self.rotation_combo = ttk.Combobox(
             frame_exec,
@@ -173,7 +173,7 @@ class SDApp:
             values=["promax", "varimax", "No rotation"],
             width=10,
         )
-        self.rotation_combo.pack(side=tk.LEFT, padx=(5, 5))
+        self.rotation_combo.pack(side=tk.LEFT, padx=(0, 5))
         self.rotation_combo.current(0)
         self.current_rotation = self.rotation_var.get()
 
@@ -312,6 +312,9 @@ class SDApp:
         dialog.title("Filter Stimuli")
         dialog.transient(self.root)
         dialog.grab_set()
+        x = self.root.winfo_x()
+        y = self.root.winfo_y()
+        dialog.geometry(f"+{x}+{y}")
         frame = ttk.Frame(dialog, padding=10)
         frame.pack(fill=tk.BOTH, expand=True)
         # 刺激のチェックボックスを配置
