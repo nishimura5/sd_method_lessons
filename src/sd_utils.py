@@ -59,18 +59,18 @@ def run_parallel_analysis(src_df, tar_cols, n_iter=500, percentile=95, random_st
 
     comp_df = pd.DataFrame(
         {
-            "Observed": obs_eigs,
-            f"Rand.({percentile}%)": crit_eigs,
-            "Diff": obs_eigs - crit_eigs,
-            "Retain": np.where(retain_mask, "Yes", "No"),
+            "Obs": obs_eigs,
+            f"Rnd{percentile}": crit_eigs,
+            "Dif": obs_eigs - crit_eigs,
+            "Ret": np.where(retain_mask, "Y", "N"),
         }
     )
     comp_df.index = np.arange(1, n_vars + 1)
-    comp_df.index.name = "Factor"
+    comp_df.index.name = "F"
     return n_factors, comp_df
 
 
-def print_parallel_analysis_summary(src_df, tar_cols, n_iter=500, percentile=95, random_state=0, digits=3):
+def print_parallel_analysis_summary(src_df, tar_cols, n_iter=500, percentile=95, random_state=0, digits=2):
     """併行分析の結果を表示用文字列として返す。"""
     n_factors, comp_df = run_parallel_analysis(
         src_df,
@@ -80,7 +80,7 @@ def print_parallel_analysis_summary(src_df, tar_cols, n_iter=500, percentile=95,
         random_state=random_state,
     )
     summary_lines = [
-        f"Recommended factors (Parallel Analysis): {n_factors}",
+        f"Recommended factors: {n_factors}",
         "",
         comp_df.round(digits).to_string(),
     ]

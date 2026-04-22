@@ -89,6 +89,10 @@ class SDApp:
             side=tk.LEFT, padx=(5, 0)
         )
 
+        ttk.Button(frame_row, text="Run Analysis", command=self._run_analysis, width=14).pack(
+            side=tk.LEFT, padx=(5, 0), fill=tk.Y
+        )
+
         # === 左右分割: 形容詞対カラム選択（左）と結果表示（右） ===
         paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=False, padx=10, pady=5)
@@ -115,6 +119,22 @@ class SDApp:
 
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
+        # --- 中央左: 併行分析表示 ---
+        frame_parallel = ttk.LabelFrame(paned, text="Parallel Analysis", padding=10)
+        paned.add(frame_parallel, weight=3)
+        ToolTip(
+            frame_parallel,
+            "Parallel analysis compares eigenvalues from your data with those from random data.\n"
+            'Selecting "PA" in Factors uses the number of factors suggested by this method.\n\n'
+            "Legend: F=Factor, Obs=Observed, Rnd95=Random 95th percentile, Dif=Obs-Rnd95, Ret=Retained (Y/N).",
+            position="top",
+        )
+        self.parallel_text = tk.Text(frame_parallel, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
+        parallel_scroll_y = ttk.Scrollbar(frame_parallel, orient=tk.VERTICAL, command=self.parallel_text.yview)
+        self.parallel_text.configure(yscrollcommand=parallel_scroll_y.set)
+        parallel_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+        self.parallel_text.pack(fill=tk.BOTH, expand=True)
+
         # --- 中央: treeviewで各形容詞対のmeanとstdを表示 ---
         frame_center = ttk.LabelFrame(paned, text="Adjective Pair Statistics", padding=10)
         paned.add(frame_center, weight=6)
@@ -122,7 +142,8 @@ class SDApp:
         def _init_sash(event, p=paned, _done=[False]):
             if not _done[0] and p.winfo_width() > 1:
                 _done[0] = True
-                p.sashpos(0, int(p.winfo_width() * 0.4))
+                p.sashpos(0, int(p.winfo_width() * 0.21))
+                p.sashpos(1, int(p.winfo_width() * 0.48))
 
         paned.bind("<Configure>", _init_sash)
 
@@ -137,7 +158,7 @@ class SDApp:
             textvariable=self.n_factors_var,
             state="readonly",
             values=["1", "2", "3", "4", "5", "PA"],
-            width=5,
+            width=4,
         )
         self.n_factors_combo.pack(side=tk.LEFT, padx=(5, 10))
         # defaultでは3を選択
@@ -150,20 +171,18 @@ class SDApp:
             textvariable=self.rotation_var,
             state="readonly",
             values=["promax", "varimax", "No rotation"],
-            width=12,
+            width=10,
         )
-        self.rotation_combo.pack(side=tk.LEFT, padx=(5, 15))
+        self.rotation_combo.pack(side=tk.LEFT, padx=(5, 5))
         self.rotation_combo.current(0)
         self.current_rotation = self.rotation_var.get()
 
-        ttk.Button(frame_exec, text="Run Analysis", command=self._run_analysis).pack(side=tk.LEFT)
-
         self.btn_plot_loadings = ttk.Button(
-            frame_exec, text="Plot Loadings", command=self._plot_loadings, state=tk.DISABLED
+            frame_exec, text="Plot Loadings", command=self._plot_loadings, state=tk.DISABLED, width=14
         )
-        self.btn_plot_loadings.pack(side=tk.LEFT, padx=(15, 5))
+        self.btn_plot_loadings.pack(side=tk.LEFT, padx=(5, 5))
         self.btn_export_loadings = ttk.Button(
-            frame_exec, text="Export Loadings", command=self._export_loadings_csv, state=tk.DISABLED
+            frame_exec, text="Export Loadings", command=self._export_loadings_csv, state=tk.DISABLED, width=16
         )
         self.btn_export_loadings.pack(side=tk.LEFT)
 
@@ -184,27 +203,11 @@ class SDApp:
         # --- 下部: 結果表示 ---
         frame_bottom = ttk.Frame(self.root)
         frame_bottom.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
-        frame_bottom.columnconfigure(0, weight=4, uniform="bottom_split")
-        frame_bottom.columnconfigure(1, weight=6, uniform="bottom_split")
+        frame_bottom.columnconfigure(0, weight=1)
         frame_bottom.rowconfigure(0, weight=1)
 
-        frame_bottom_left = ttk.LabelFrame(frame_bottom, text="Parallel Analysis", padding=10)
-        frame_bottom_left.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
-        frame_bottom_left.grid_propagate(False)
-        ToolTip(
-            frame_bottom_left,
-            "Parallel analysis compares eigenvalues from your data with those from random data.\n"
-            'Selecting "PA" in Factors uses the number of factors suggested by this method.',
-            position="top",
-        )
-        self.parallel_text = tk.Text(frame_bottom_left, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
-        scroll_y = ttk.Scrollbar(frame_bottom_left, orient=tk.VERTICAL, command=self.parallel_text.yview)
-        self.parallel_text.configure(yscrollcommand=scroll_y.set)
-        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
-        self.parallel_text.pack(fill=tk.BOTH, expand=True)
-
         frame_bottom_right = ttk.LabelFrame(frame_bottom, text="Factor Scores by Stimulus", padding=10)
-        frame_bottom_right.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+        frame_bottom_right.grid(row=0, column=0, sticky="nsew")
         frame_bottom_right.grid_propagate(False)
 
         # グラフ描画ボタン
