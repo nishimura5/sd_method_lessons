@@ -124,10 +124,20 @@ class SDApp:
         frame_corr = ttk.Frame(frame_parallel)
         # pearsonとpolychoricを選択するcomboを追加
         ttk.Label(frame_corr, text="Correlation:").pack(side=tk.LEFT, padx=(0, 2))
-        self.corr_var = tk.StringVar(value="pearson")
-        ttk.Combobox(
-            frame_corr, textvariable=self.corr_var, state="readonly", values=["pearson", "polychoric"], width=10
-        ).pack(side=tk.LEFT)
+        self.corr_name_var = tk.StringVar(value="pearson")
+        corr_combo = ttk.Combobox(
+            frame_corr,
+            textvariable=self.corr_name_var,
+            state="readonly",
+            values=["pearson", "polychoric"],
+            width=10,
+        )
+        corr_combo.pack(side=tk.LEFT)
+        corr_combo.bind("<<ComboboxSelected>>", self._on_corr_change)
+        self.parallel_analysis_iter_var = tk.StringVar(value="500")
+        ttk.Label(frame_corr, text="Iter:").pack(side=tk.LEFT, padx=(5, 2))
+        self.polychoric_entry = ttk.Entry(frame_corr, textvariable=self.parallel_analysis_iter_var, width=8, state="readonly")
+        self.polychoric_entry.pack(side=tk.LEFT, padx=(5, 0))
 
         frame_corr.pack(side=tk.TOP, fill=tk.X, pady=5)
         paned.add(frame_parallel, weight=3)
@@ -397,6 +407,15 @@ class SDApp:
             display_name = self._format_adj_name(col)
             self.stats_tree.insert("", tk.END, text=display_name, values=row_vals)
 
+    def _on_corr_change(self, *args):
+        # polychoricを選択したとき、シミュレーション回数をentryで指定できるようにする
+        if self.corr_name_var.get() == "polychoric":
+            self.parallel_analysis_iter_var.set("20")
+            self.polychoric_entry.configure(state="normal")
+        else:
+            self.parallel_analysis_iter_var.set("500")
+            self.polychoric_entry.configure(state="readonly")
+
     def _run_analysis(self):
         if self.df is None:
             messagebox.showwarning("Warning", "Please load a CSV file first.")
@@ -416,8 +435,13 @@ class SDApp:
             tar_stims = self.tar_obj_table.get(obj_col, self.df[obj_col].unique())
             filtered_df = self.df[self.df[obj_col].isin(tar_stims)]
 
+            if self.corr_name_var.get() == "polychoric":
+                n_iter = int(self.parallel_analysis_iter_var.get())
+            else:
+                # Pearsonでは標準的なシミュレーション回数を使用
+                n_iter = 500
             suggested_factors, parallel_str = print_parallel_analysis_summary(
-                filtered_df, selected_cols, corr=self.corr_var.get()
+                filtered_df, selected_cols, corr=self.corr_name_var.get(), n_iter=n_iter
             )
 
             self.parallel_text.delete("1.0", tk.END)
@@ -445,7 +469,7 @@ class SDApp:
                 selected_cols,
                 factor_names,
                 rotation=self.current_rotation,
-                corr=self.corr_var.get(),
+                corr=self.corr_name_var.get(),
             )
 
             # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
@@ -505,12 +529,18 @@ class SDApp:
             # 表示名に変換
             plot_df.index = [self._format_adj_name(col) for col in original_cols]
             inverted_rows = [self.invert_map.get(col, False) for col in original_cols]
+            if self.corr_name_var.get() == "polychoric":
+                caption = "Corr: Polychoric\n"
+                caption += f"Parallel Analysis Iterations: {self.parallel_analysis_iter_var.get()}  Percentiles: 95."
+            else:
+                caption = "Corr: Pearson\n"
+                caption += "Parallel Analysis Percentiles: 95."
             plot_factor_loadings(
                 plot_df,
-                self.factor_names,
                 title=title,
                 inverted_rows=inverted_rows,
                 promax_corr_df=self.corr_df if self.current_rotation == "promax" else None,
+                caption=caption,
             )
 
     def _export_loadings_csv(self):

@@ -4,7 +4,7 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 
-def plot_factor_loadings(loading_df, factor_names, title, inverted_rows=None, promax_corr_df=None):
+def plot_factor_loadings(loading_df, title, inverted_rows=None, promax_corr_df=None, caption=""):
     show_corr = promax_corr_df is not None
     fig, axes = plt.subplots(1, 2 if show_corr else 1, figsize=(12, 6) if show_corr else None)
 
@@ -21,6 +21,10 @@ def plot_factor_loadings(loading_df, factor_names, title, inverted_rows=None, pr
         for x in range(loading_df.shape[1]):
             ax_loadings.text(x, y, f"{loading_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=8)
     ax_loadings.set_title(title if not show_corr else f"{title} - Factor Loadings")
+    # caption用のスペースをグラフの下に確保
+    # キャプションを追加
+    if caption:
+        plt.figtext(0.01, 0.01, caption, wrap=True, horizontalalignment="left", fontsize=10)
 
     if show_corr:
         ax_corr = axes[1]
@@ -34,9 +38,10 @@ def plot_factor_loadings(loading_df, factor_names, title, inverted_rows=None, pr
                 ax_corr.text(x, y, f"{promax_corr_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=8)
         ax_corr.set_title("Promax Factor Correlations")
 
-    plt.gcf().canvas.manager.set_window_title("Factor Loading Matrix" if not show_corr else "Factor Analysis Plots")
-    plt.tight_layout()
+    plt.gcf().canvas.manager.set_window_title("Factor Loading Matrix")
+    plt.tight_layout(rect=[0, 0.05, 1, 1])  # 下部5%をキャプション用テキストのために予約
     plt.show()
+
 
 
 def plot_pca(object_factor_df, factor_names, title):
