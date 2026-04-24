@@ -9,6 +9,15 @@ src_df = pd.read_csv(csv_file_path)
 
 tar_cols = [c for c in src_df.columns if c.startswith("評価.")]
 
+# 固有値を計算
+eigenvalues = sd_utils.compute_eigenvalues(src_df, tar_cols)
+print("\n固有値:")
+for i, val in enumerate(eigenvalues):
+    print(f"因子候補{i + 1}: {val:.2f}")
+# 固有値の合計
+eigenvalue_sum = sum(eigenvalues)
+print(f"固有値の合計: {eigenvalue_sum:.2f}")
+
 # 因子の名称を定義
 factor_names = ["因子1", "因子2", "因子3"]
 

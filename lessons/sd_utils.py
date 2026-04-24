@@ -2,10 +2,11 @@ import os
 import platform
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-
 from sklearn.decomposition import FactorAnalysis
 from sklearn.preprocessing import StandardScaler
+
 
 def get_csv_path(tar_file_name, tar_dir="../sample_data"):
     # For loading CSV file from a specified directory (default: ../sample_data)
@@ -17,6 +18,7 @@ def get_csv_path(tar_file_name, tar_dir="../sample_data"):
     if not os.path.exists(tar_path):
         raise FileNotFoundError(f"CSV file not found at path: {tar_path}")
     return tar_path
+
 
 def set_csv_path(tar_file_name, tar_dir="~/Desktop"):
     resolved_dir = os.path.expanduser(tar_dir)
@@ -59,3 +61,18 @@ def factor_analysis_with_varimax(src_df, tar_cols, factor_names):
     factor_scores = fa_varimax.transform(standard_vals)
     factor_score_df = pd.DataFrame(factor_scores, columns=factor_names, index=src_df.index)
     return rotated_loading_df, factor_score_df
+
+
+def compute_eigenvalues(src_df, tar_cols):
+    """Pearson相関行列の固有値を降順で返す関数
+    Args:
+        src_df (pd.DataFrame): 元のデータフレーム
+        tar_cols (list): 因子分析に使用するカラム名のリスト
+    Returns:
+        np.ndarray: 固有値の配列（降順）
+    """
+    vals = src_df[tar_cols].dropna().values
+    standard_vals = StandardScaler().fit_transform(vals)
+    corr_matrix = np.corrcoef(standard_vals, rowvar=False)
+    eigenvalues = np.sort(np.linalg.eigvalsh(corr_matrix))[::-1]
+    return eigenvalues
