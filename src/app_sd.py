@@ -19,7 +19,7 @@ class SDApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Semantic Differential Factor Analysis Tool")
-        self.root.geometry("1000x800")
+        self.root.geometry("1000x700")
         self.root.minsize(800, 600)
 
         self.df = None
@@ -94,8 +94,8 @@ class SDApp:
         )
 
         # === 左右分割: 形容詞対カラム選択（左）と結果表示（右） ===
-        paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=False, padx=10, pady=5)
+        paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL, height=360)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         # --- 左側: 形容詞対カラム選択 ---
         frame_adj = ttk.LabelFrame(paned, text="Select Adjective Pair Columns", padding=10)
