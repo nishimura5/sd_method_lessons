@@ -20,7 +20,7 @@ def plot_factor_loadings(loading_df, title, inverted_rows=None, promax_corr_df=N
     for y in range(loading_df.shape[0]):
         for x in range(loading_df.shape[1]):
             ax_loadings.text(x, y, f"{loading_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=8)
-    ax_loadings.set_title(title if not show_corr else f"{title} - Factor Loadings")
+    ax_loadings.set_title(title if not show_corr else f"{title}: Factor Loadings")
     # caption用のスペースをグラフの下に確保
     # キャプションを追加
     if caption:
@@ -84,6 +84,6 @@ def plot_pca(object_factor_df, factor_names, title):
     plt.xlabel(f"PC1 ({pc1_ratio:.1f}%)")
     plt.ylabel(f"PC2 ({pc2_ratio:.1f}%)")
     plt.title(title)
-    plt.gcf().canvas.manager.set_window_title("PCA Plot")
+    plt.gcf().canvas.manager.set_window_title("PCA Map")
     plt.tight_layout()
     plt.show()

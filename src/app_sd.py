@@ -18,7 +18,7 @@ from tooltip import ToolTip
 class SDApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("SD Method Factor Analysis Tool")
+        self.root.title("Semantic Differential Factor Analysis Tool")
         self.root.geometry("1000x800")
         self.root.minsize(800, 600)
 
@@ -78,7 +78,7 @@ class SDApp:
         regex_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         ToolTip(
             regex_entry,
-            '[Example]\n  original: "Q1_warm_cold"\n  regex: Q\\d+_(.+)_(.+)\n  result: warm - cold',
+            '[Example]\n  Original: "Q1_warm_cold"\n  Regex: Q\\d+_(.+)_(.+)\n  Result: warm - cold',
         )
         self.btn_apply_reg = ttk.Button(frame_regex, text="Apply", command=self._apply_regex, state=tk.DISABLED)
         self.btn_apply_reg.pack(side=tk.LEFT)
@@ -121,7 +121,9 @@ class SDApp:
 
         # --- 中央左: 併行分析表示 ---
         frame_parallel = ttk.LabelFrame(paned, text="Parallel Analysis", padding=10)
+        paned.add(frame_parallel, weight=3)
         frame_corr = ttk.Frame(frame_parallel)
+        frame_corr.pack(fill=tk.X, pady=(2, 7))
         # pearsonとpolychoricを選択するcomboを追加
         ttk.Label(frame_corr, text="Correlation:").pack(side=tk.LEFT, padx=(0, 2))
         self.corr_name_var = tk.StringVar(value="pearson")
@@ -135,26 +137,26 @@ class SDApp:
         corr_combo.pack(side=tk.LEFT)
         corr_combo.bind("<<ComboboxSelected>>", self._on_corr_change)
         self.parallel_analysis_iter_var = tk.StringVar(value="500")
-        ttk.Label(frame_corr, text="Iter:").pack(side=tk.LEFT, padx=(5, 2))
-        self.polychoric_entry = ttk.Entry(frame_corr, textvariable=self.parallel_analysis_iter_var, width=8, state="readonly")
+        ttk.Label(frame_corr, text="Iter.:").pack(side=tk.LEFT, padx=(5, 2))
+        self.polychoric_entry = ttk.Entry(
+            frame_corr, textvariable=self.parallel_analysis_iter_var, width=8, state="readonly"
+        )
         self.polychoric_entry.pack(side=tk.LEFT, padx=(5, 0))
 
-        frame_corr.pack(side=tk.TOP, fill=tk.X, pady=5)
-        paned.add(frame_parallel, weight=3)
-        ToolTip(
-            frame_parallel,
-            "Parallel analysis compares eigenvalues from your data with those from random data.\n"
-            'Selecting "PA" in Factors uses the number of factors suggested by this method.\n\n'
-            "Legend: F=Factor, Obs=Observed, Rnd95=Random 95th percentile, Dif=Obs-Rnd95, Ret=Retained (Y/N).",
-            position="top",
-        )
         self.parallel_text = tk.Text(frame_parallel, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
         parallel_scroll_y = ttk.Scrollbar(frame_parallel, orient=tk.VERTICAL, command=self.parallel_text.yview)
         self.parallel_text.configure(yscrollcommand=parallel_scroll_y.set)
         parallel_scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
         self.parallel_text.pack(fill=tk.BOTH, expand=True)
+        ToolTip(
+            self.parallel_text,
+            "Parallel analysis compares eigenvalues from your data with those from random data.\n"
+            'Selecting "PA" for Factors uses the number of factors suggested by this method.\n\n'
+            "Legend: F=Factor, Obs=Observed, Rnd95=Random 95th percentile, Dif=Obs-Rnd95, Ret=Retained (Y/N).",
+            position="bottom",
+        )
 
-        # --- 中央: treeviewで各形容詞対のmeanとstdを表示 ---
+        # --- 中央右: treeviewで各形容詞対のmeanとstdを表示 ---
         frame_center = ttk.LabelFrame(paned, text="Adjective Pair Statistics", padding=10)
         paned.add(frame_center, weight=6)
 
@@ -225,7 +227,7 @@ class SDApp:
         frame_bottom.columnconfigure(0, weight=1)
         frame_bottom.rowconfigure(0, weight=1)
 
-        frame_bottom_right = ttk.LabelFrame(frame_bottom, text="Factor Scores by Stimulus", padding=10)
+        frame_bottom_right = ttk.LabelFrame(frame_bottom, text="Factor Scores", padding=10)
         frame_bottom_right.grid(row=0, column=0, sticky="nsew")
         frame_bottom_right.grid_propagate(False)
 
@@ -233,7 +235,7 @@ class SDApp:
         frame_plot = ttk.Frame(frame_bottom_right)
         frame_plot.pack(fill=tk.X, pady=(0, 5))
 
-        self.btn_plot_pca = ttk.Button(frame_plot, text="Plot PCA", command=self._plot_pca, state=tk.DISABLED)
+        self.btn_plot_pca = ttk.Button(frame_plot, text="Plot PCA Map", command=self._plot_pca, state=tk.DISABLED)
         self.btn_plot_pca.pack(side=tk.LEFT)
 
         self.btn_export_csv = ttk.Button(frame_plot, text="Export Scores", command=self._export_csv, state=tk.DISABLED)
@@ -531,10 +533,10 @@ class SDApp:
             inverted_rows = [self.invert_map.get(col, False) for col in original_cols]
             if self.corr_name_var.get() == "polychoric":
                 caption = "Corr: Polychoric\n"
-                caption += f"Parallel Analysis Iterations: {self.parallel_analysis_iter_var.get()}  Percentiles: 95."
+                caption += f"Parallel analysis iterations: {self.parallel_analysis_iter_var.get()}  Percentile: 95th"
             else:
                 caption = "Corr: Pearson\n"
-                caption += "Parallel Analysis Percentiles: 95."
+                caption += "Parallel analysis percentile: 95th"
             plot_factor_loadings(
                 plot_df,
                 title=title,
@@ -563,7 +565,7 @@ class SDApp:
             if self.invert_map.get(col, False):
                 export_df.loc[col] = -export_df.loc[col]
         export_df.index = [self._format_adj_name(col) for col in original_cols]
-        export_df.index.name = "Adjective pair"
+        export_df.index.name = "Adjective Pair"
         export_df.round(3).to_csv(path, encoding="utf-8-sig")
 
         messagebox.showinfo("Export", f"Saved to:\n{path}")
@@ -586,7 +588,7 @@ class SDApp:
 
     def _plot_pca(self):
         if self.score_df is not None:
-            plot_pca(self.score_df, self.factor_names, title="Stimulus Positions (PCA 2D + Factor Axis Annotation)")
+            plot_pca(self.score_df, self.factor_names, title="Stimulus Map (2D PCA with Factor Axes)")
 
 
 def main():
