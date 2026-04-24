@@ -17,8 +17,16 @@ melted_df = src_df.melt(value_vars=tar_cols, var_name="形容詞対")
 heatmap_df = melted_df.pivot_table(index="形容詞対", columns="value", aggfunc="size", fill_value=0)
 heatmap_df = heatmap_df.reindex(index=tar_cols, columns=range(1, 8), fill_value=0)
 
-print("評定の件数 (全obj合計):")
-print(heatmap_df)
+# 標準偏差を計算
+std_series = src_df[tar_cols].std()
+
+# heat_map_dfの右に標準偏差の列を追加
+print_df = heatmap_df.copy()
+print_df["標準偏差"] = std_series
+
+# 結果を表示
+print("評定の件数 (全obj合計)と標準偏差:")
+print(print_df)
 
 # Create ordered lists of left and right labels
 tar_cols = heatmap_df.index.tolist()
