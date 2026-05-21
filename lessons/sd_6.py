@@ -7,10 +7,10 @@ sd_utils.set_japanese_font()
 csv_file_path = sd_utils.get_csv_path("sample_sd.csv")
 src_df = pd.read_csv(csv_file_path)
 
-tar_cols = [c for c in src_df.columns if c.startswith("評価.")]
+scale_cols = [col for col in src_df.columns if "-" in col]
 
 # 固有値を計算
-eigenvalues = sd_utils.compute_eigenvalues(src_df, tar_cols)
+eigenvalues = sd_utils.compute_eigenvalues(src_df, scale_cols)
 print("\n固有値:")
 for i, val in enumerate(eigenvalues):
     print(f"因子候補{i + 1}: {val:.2f}")
@@ -19,9 +19,9 @@ eigenvalue_sum = sum(eigenvalues)
 print(f"固有値の合計: {eigenvalue_sum:.2f}")
 
 # 因子の名称を定義
-factor_names = ["因子1", "因子2", "因子3"]
+factor_names = ["因子1", "因子2"]
 
-rotated_loading_df, factor_score_df = sd_utils.factor_analysis_with_varimax(src_df, tar_cols, factor_names)
+rotated_loading_df, factor_score_df = sd_utils.factor_analysis_with_varimax(src_df, scale_cols, factor_names)
 
 # Sort factors
 rotated_loading_df["max_abs_loading"] = rotated_loading_df.abs().max(axis=1)

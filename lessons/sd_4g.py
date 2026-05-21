@@ -10,15 +10,15 @@ sd_utils.set_japanese_font()
 csv_file_path = sd_utils.get_csv_path("sample_sd.csv")
 src_df = pd.read_csv(csv_file_path)
 
-tar_cols = [c for c in src_df.columns if c.startswith("評価.")]
+scale_cols = [col for col in src_df.columns if "-" in col]
 
 # 全objの回答件数のsumを集計
-melted_df = src_df.melt(value_vars=tar_cols, var_name="形容詞対")
+melted_df = src_df.melt(value_vars=scale_cols, var_name="形容詞対")
 heatmap_df = melted_df.pivot_table(index="形容詞対", columns="value", aggfunc="size", fill_value=0)
-heatmap_df = heatmap_df.reindex(index=tar_cols, columns=range(1, 8), fill_value=0)
+heatmap_df = heatmap_df.reindex(index=scale_cols, columns=range(1, 8), fill_value=0)
 
 # 標準偏差を計算
-std_series = src_df[tar_cols].std()
+std_series = src_df[scale_cols].std()
 
 # heat_map_dfの右に標準偏差の列を追加
 print_df = heatmap_df.copy()
@@ -33,7 +33,7 @@ tar_cols = heatmap_df.index.tolist()
 left_order = []
 right_order = []
 for col in tar_cols:
-    m = re.search(r"評価.\(1\)(.+)-(.+)\(7\)", col)
+    m = re.search(r"(.+)-(.+)", col)
     left_order.append(m.group(1))
     right_order.append(m.group(2))
 

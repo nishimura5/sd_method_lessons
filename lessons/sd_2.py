@@ -14,19 +14,19 @@ num_rows = src_df.index.size
 print(f"ファイル名: {csv_file_path}\n行数: {num_rows}行\n")
 
 # "評価."で始まるカラムをscale_colsに格納
-scale_cols = [c for c in src_df.columns if c.startswith("評価.")]
+scale_cols = [col for col in src_df.columns if "-" in col]
 print("\n形容詞対:")
 for col in scale_cols:
     print(f"  {col}")
 
-# "対象物コード"カラムのユニークな値をobj_namesに格納して表示
-obj_col_name = "対象物コード"
+# "stimulus_id"カラムのユニークな値をobj_namesに格納して表示
+obj_col_name = "stimulus_id"
 obj_names = src_df[obj_col_name].unique()
 print(f"\n'{obj_col_name}' の一覧:")
 print(", ".join(obj_names))
 
-# "回答者コード"カラムのユニークな値をsbj_namesに格納して表示
-sbj_col_name = "回答者コード"
+# "respondent_id"カラムのユニークな値をsbj_namesに格納して表示
+sbj_col_name = "respondent_id"
 sbj_names = src_df[sbj_col_name].unique()
 print(f"\n'{sbj_col_name}' の一覧:")
 print(", ".join(sbj_names))

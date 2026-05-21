@@ -11,9 +11,9 @@ sd_utils.set_japanese_font()
 csv_file_path = sd_utils.get_csv_path("sample_sd.csv")
 src_df = pd.read_csv(csv_file_path)
 
-tar_cols = [c for c in src_df.columns if c.startswith("評価.")]
+scale_cols = [col for col in src_df.columns if "-" in col]
 
-corr_df = src_df[tar_cols].corr()
+corr_df = src_df[scale_cols].corr()
 
 print("形容詞対どうしの相関行列:")
 print(corr_df.round(3))
@@ -34,7 +34,7 @@ print(eig_df.round(4))
 plt.imshow(corr_df.values, aspect="equal", vmin=-1, vmax=1, cmap="coolwarm")
 plt.colorbar(label="相関係数")
 scale_labels = [
-    f"{m.group(1)}-{m.group(2)}" if (m := re.search(r"評価.\(1\)(.+)-(.+)\(7\)", c)) else c for c in tar_cols
+    f"{m.group(1)}-{m.group(2)}" if (m := re.search(r"(.+)-(.+)", c)) else c for c in scale_cols
 ]
 plt.xticks(range(len(scale_labels)), scale_labels, rotation=90, fontsize=8)
 plt.yticks(range(len(scale_labels)), scale_labels, rotation=0, fontsize=8)

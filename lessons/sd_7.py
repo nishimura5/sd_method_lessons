@@ -8,12 +8,12 @@ sd_utils.set_japanese_font()
 csv_file_path = sd_utils.get_csv_path("sample_sd.csv")
 src_df = pd.read_csv(csv_file_path)
 
-tar_cols = [c for c in src_df.columns if c.startswith("評価.")]
+scale_cols = [col for col in src_df.columns if "-" in col]
 
 # 因子の名称を定義
-factor_names = ["因子1", "因子2", "因子3"]
+factor_names = ["因子1", "因子2"]
 
-rotated_loading_df, factor_score_df = sd_utils.factor_analysis_with_varimax(src_df, tar_cols, factor_names)
+rotated_loading_df, factor_score_df = sd_utils.factor_analysis_with_varimax(src_df, scale_cols, factor_names)
 
 # Sort factors
 rotated_loading_df["max_abs_loading"] = rotated_loading_df.abs().max(axis=1)
@@ -27,11 +27,11 @@ invert_list = [
 ]
 
 # 集計表を作成
-melted_df = src_df.melt(id_vars=["対象物コード"], value_vars=tar_cols, var_name="形容詞対")
-heatmap_df = melted_df.pivot_table(index="形容詞対", columns="対象物コード", values="value", aggfunc="mean")
+melted_df = src_df.melt(id_vars=["stimulus_id"], value_vars=scale_cols, var_name="形容詞対")
+heatmap_df = melted_df.pivot_table(index="形容詞対", columns="stimulus_id", values="value", aggfunc="mean")
 heatmap_df = heatmap_df.reindex(index=sorted_scale_cols)
 # ここで表示用にリネーム
-heatmap_df.index = heatmap_df.index.str.replace(r"評価\.\(\d\)(.*?)-(.*)\(\d\)", r"\1 -- \2", regex=True)
+heatmap_df.index = heatmap_df.index.str.replace(r"(.+)-(.+)", r"\1 -- \2", regex=True)
 
 # invert_listに基づいて、因子負荷が負の形容詞対を反転する
 invert_mask = pd.Series(invert_list, index=heatmap_df.index)

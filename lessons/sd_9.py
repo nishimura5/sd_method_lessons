@@ -11,17 +11,17 @@ sd_utils.set_japanese_font()
 csv_file_path = sd_utils.get_csv_path("sample_sd.csv")
 src_df = pd.read_csv(csv_file_path)
 
-tar_cols = [c for c in src_df.columns if c.startswith("評価.")]
+scale_cols = [col for col in src_df.columns if "-" in col]
 
 # 因子の名称を定義
-factor_names = ["因子1", "因子2", "因子3"]
+factor_names = ["因子1", "因子2"]
 
 # Factor scores for each response row
-rotated_loading_df, factor_score_df = sd_utils.factor_analysis_with_varimax(src_df, tar_cols, factor_names)
-factor_score_df["対象物コード"] = src_df.loc[src_df.index, "対象物コード"].values
+rotated_loading_df, factor_score_df = sd_utils.factor_analysis_with_varimax(src_df, scale_cols, factor_names)
+factor_score_df["stimulus_id"] = src_df.loc[src_df.index, "stimulus_id"].values
 
 # Mean factor scores by object
-object_factor_df = factor_score_df.groupby("対象物コード", as_index=True).mean()
+object_factor_df = factor_score_df.groupby("stimulus_id", as_index=True).mean()
 
 # Standardize each factor column before distance calculation and clustering
 object_factor_std = StandardScaler().fit_transform(object_factor_df.values)
@@ -39,7 +39,7 @@ object_distance_df = pd.DataFrame(
     index=object_factor_std_df.index,
     columns=object_factor_std_df.index,
 )
-print("\n対象物どうしの距離（Euclidean）:")
+print("\n刺激どうしの距離（Euclidean）:")
 print(object_distance_df.round(3))
 
 # Hierarchical clustering with Ward method
@@ -48,7 +48,7 @@ linkage_matrix = linkage(object_factor_std_df.values, method="ward")
 # Compare candidate numbers of clusters by silhouette score
 n_objects = len(object_factor_std_df)
 if n_objects < 3:
-    raise ValueError("クラスタリングの比較には、少なくとも3個の対象物が必要です。")
+    raise ValueError("クラスタリングの比較には、少なくとも3個の刺激が必要です。")
 
 max_clusters = min(4, n_objects - 1)
 candidate_n_clusters = list(range(2, max_clusters + 1))
@@ -72,7 +72,7 @@ clustered_object_df = object_factor_df.copy()
 clustered_object_df["クラスタ"] = final_labels
 clustered_object_df = clustered_object_df.sort_values(["クラスタ"] + factor_names)
 
-print("\n対象物ごとのクラスタ:")
+print("\n刺激ごとのクラスタ:")
 print(clustered_object_df.round(3))
 
 cluster_profile_df = clustered_object_df.groupby("クラスタ")[factor_names].mean()
@@ -112,7 +112,7 @@ ax_dend.text(
     fontsize=8,
 )
 ax_dend.set_ylabel("結合距離")
-ax_dend.set_title("対象物の樹形図（Ward法）")
+ax_dend.set_title("刺激の樹形図（Ward法）")
 
 # 右：silhouette
 ax_sil.bar(score_df.index.astype(str), score_df["silhouette"])
