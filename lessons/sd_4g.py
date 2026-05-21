@@ -12,7 +12,7 @@ src_df = pd.read_csv(csv_file_path)
 
 scale_cols = [col for col in src_df.columns if "-" in col]
 
-# 全objの回答件数のsumを集計
+# 全刺激の回答件数のsumを集計
 melted_df = src_df.melt(value_vars=scale_cols, var_name="形容詞対")
 heatmap_df = melted_df.pivot_table(index="形容詞対", columns="value", aggfunc="size", fill_value=0)
 heatmap_df = heatmap_df.reindex(index=scale_cols, columns=range(1, 8), fill_value=0)
@@ -25,7 +25,7 @@ print_df = heatmap_df.copy()
 print_df["標準偏差"] = std_series
 
 # 結果を表示
-print("評定の件数 (全obj合計)と標準偏差:")
+print("評定の件数 (全刺激合計)と標準偏差:")
 print(print_df)
 
 # Create ordered lists of left and right labels
@@ -60,7 +60,7 @@ right_axis.set_yticks(range(len(tar_cols)))
 right_axis.set_yticklabels(right_order)
 right_axis.tick_params(axis="y", length=0)
 
-plt.title("評定の件数 (全obj合計)")
+plt.title("評定の件数 (全刺激合計)")
 plt.gcf().canvas.manager.set_window_title("Rating Aggregation")
 plt.tight_layout()
 plt.show()

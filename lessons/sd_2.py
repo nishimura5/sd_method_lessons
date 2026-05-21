@@ -19,11 +19,11 @@ print("\n形容詞対:")
 for col in scale_cols:
     print(f"  {col}")
 
-# "stimulus_id"カラムのユニークな値をobj_namesに格納して表示
-obj_col_name = "stimulus_id"
-obj_names = src_df[obj_col_name].unique()
-print(f"\n'{obj_col_name}' の一覧:")
-print(", ".join(obj_names))
+# "stimulus_id"カラムのユニークな値をstimulus_namesに格納して表示
+stimulus_col_name = "stimulus_id"
+stimulus_names = src_df[stimulus_col_name].unique()
+print(f"\n'{stimulus_col_name}' の一覧:")
+print(", ".join(stimulus_names))
 
 # "respondent_id"カラムのユニークな値をsbj_namesに格納して表示
 sbj_col_name = "respondent_id"

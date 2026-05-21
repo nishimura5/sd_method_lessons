@@ -18,24 +18,24 @@ factor_names = ["因子1", "因子2"]
 rotated_loading_df, factor_score_df = sd_utils.factor_analysis_with_varimax(src_df, scale_cols, factor_names)
 
 factor_score_df["stimulus_id"] = src_df.loc[src_df.index, "stimulus_id"].values
-# Mean factor scores by object (representative positions)
-object_factor_df = factor_score_df.groupby("stimulus_id", as_index=True).mean()
+# Mean factor scores by stimulus (representative positions)
+stimulus_factor_df = factor_score_df.groupby("stimulus_id", as_index=True).mean()
 print(f"刺激ごとの{len(factor_names)}因子得点平均:")
-print(object_factor_df.round(3))
+print(stimulus_factor_df.round(3))
 
 # PCAによる次元削減とプロット
-object_factor_std = StandardScaler().fit_transform(object_factor_df.values)
+stimulus_factor_std = StandardScaler().fit_transform(stimulus_factor_df.values)
 pca = PCA(n_components=2, random_state=0)
-object_pca_2d = pca.fit_transform(object_factor_std)
+stimulus_pca_2d = pca.fit_transform(stimulus_factor_std)
 
-object_pca_df = pd.DataFrame(
-    object_pca_2d,
-    index=object_factor_df.index,
+stimulus_pca_df = pd.DataFrame(
+    stimulus_pca_2d,
+    index=stimulus_factor_df.index,
     columns=["PC1", "PC2"],
 )
 
 print("\nPCA 2次元座標（刺激）:")
-print(object_pca_df.round(3))
+print(stimulus_pca_df.round(3))
 
 # Annotate original factor axes (Factor1-3) on the PCA plot
 factor_axis_vectors_2d = pca.components_.T
@@ -43,10 +43,10 @@ factor_axis_vectors_2d = pca.components_.T
 # 以下はグラフ描画
 plt.axhline(0, color="gray", linewidth=0.8)
 plt.axvline(0, color="gray", linewidth=0.8)
-plt.scatter(object_pca_df["PC1"], object_pca_df["PC2"], s=80)
+plt.scatter(stimulus_pca_df["PC1"], stimulus_pca_df["PC2"], s=80)
 
-for object_code, row in object_pca_df.iterrows():
-    plt.text(row["PC1"] + 0.03, row["PC2"] + 0.03, object_code, fontsize=10)
+for stimulus_code, row in stimulus_pca_df.iterrows():
+    plt.text(row["PC1"] + 0.03, row["PC2"] + 0.03, stimulus_code, fontsize=10)
 
 arrow_scale = 1.5
 for i, feature_name in enumerate(factor_names):

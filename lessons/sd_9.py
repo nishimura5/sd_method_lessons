@@ -20,43 +20,43 @@ factor_names = ["因子1", "因子2"]
 rotated_loading_df, factor_score_df = sd_utils.factor_analysis_with_varimax(src_df, scale_cols, factor_names)
 factor_score_df["stimulus_id"] = src_df.loc[src_df.index, "stimulus_id"].values
 
-# Mean factor scores by object
-object_factor_df = factor_score_df.groupby("stimulus_id", as_index=True).mean()
+# Mean factor scores by stimulus
+stimulus_factor_df = factor_score_df.groupby("stimulus_id", as_index=True).mean()
 
 # Standardize each factor column before distance calculation and clustering
-object_factor_std = StandardScaler().fit_transform(object_factor_df.values)
-object_factor_std_df = pd.DataFrame(
-    object_factor_std,
-    index=object_factor_df.index,
+stimulus_factor_std = StandardScaler().fit_transform(stimulus_factor_df.values)
+stimulus_factor_std_df = pd.DataFrame(
+    stimulus_factor_std,
+    index=stimulus_factor_df.index,
     columns=factor_names,
 )
 print("\n標準化後の平均因子得点:")
-print(object_factor_std_df.round(3))
+print(stimulus_factor_std_df.round(3))
 
-# Euclidean distance matrix between objects
-object_distance_df = pd.DataFrame(
-    euclidean_distances(object_factor_std_df.values),
-    index=object_factor_std_df.index,
-    columns=object_factor_std_df.index,
+# Euclidean distance matrix between stimuli
+stimulus_distance_df = pd.DataFrame(
+    euclidean_distances(stimulus_factor_std_df.values),
+    index=stimulus_factor_std_df.index,
+    columns=stimulus_factor_std_df.index,
 )
 print("\n刺激どうしの距離（Euclidean）:")
-print(object_distance_df.round(3))
+print(stimulus_distance_df.round(3))
 
 # Hierarchical clustering with Ward method
-linkage_matrix = linkage(object_factor_std_df.values, method="ward")
+linkage_matrix = linkage(stimulus_factor_std_df.values, method="ward")
 
 # Compare candidate numbers of clusters by silhouette score
-n_objects = len(object_factor_std_df)
-if n_objects < 3:
+n_stimuli = len(stimulus_factor_std_df)
+if n_stimuli < 3:
     raise ValueError("クラスタリングの比較には、少なくとも3個の刺激が必要です。")
 
-max_clusters = min(4, n_objects - 1)
+max_clusters = min(4, n_stimuli - 1)
 candidate_n_clusters = list(range(2, max_clusters + 1))
 
 score_rows = []
 for n_clusters in candidate_n_clusters:
     labels = fcluster(linkage_matrix, t=n_clusters, criterion="maxclust")
-    score = silhouette_score(object_factor_std_df.values, labels)
+    score = silhouette_score(stimulus_factor_std_df.values, labels)
     score_rows.append({"クラスタ数": n_clusters, "silhouette": score})
 
 score_df = pd.DataFrame(score_rows).set_index("クラスタ数")
@@ -68,14 +68,14 @@ print(f"\n採用するクラスタ数: {best_n_clusters}")
 
 # Final cluster assignment
 final_labels = fcluster(linkage_matrix, t=best_n_clusters, criterion="maxclust")
-clustered_object_df = object_factor_df.copy()
-clustered_object_df["クラスタ"] = final_labels
-clustered_object_df = clustered_object_df.sort_values(["クラスタ"] + factor_names)
+clustered_stimulus_df = stimulus_factor_df.copy()
+clustered_stimulus_df["クラスタ"] = final_labels
+clustered_stimulus_df = clustered_stimulus_df.sort_values(["クラスタ"] + factor_names)
 
 print("\n刺激ごとのクラスタ:")
-print(clustered_object_df.round(3))
+print(clustered_stimulus_df.round(3))
 
-cluster_profile_df = clustered_object_df.groupby("クラスタ")[factor_names].mean()
+cluster_profile_df = clustered_stimulus_df.groupby("クラスタ")[factor_names].mean()
 print("\nクラスタごとの平均因子得点:")
 print(cluster_profile_df.round(3))
 
@@ -85,7 +85,7 @@ fig, (ax_dend, ax_sil) = plt.subplots(1, 2)
 # 左：樹形図
 dn = dendrogram(
     linkage_matrix,
-    labels=object_factor_std_df.index.tolist(),
+    labels=stimulus_factor_std_df.index.tolist(),
     ax=ax_dend,
 )
 for icoord, dcoord in zip(dn["icoord"], dn["dcoord"]):

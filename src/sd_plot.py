@@ -44,23 +44,23 @@ def plot_factor_loadings(loading_df, title, inverted_rows=None, promax_corr_df=N
 
 
 
-def plot_pca(object_factor_df, factor_names, title):
-    object_factor_std = StandardScaler().fit_transform(object_factor_df.values)
+def plot_pca(stimulus_factor_df, factor_names, title):
+    stimulus_factor_std = StandardScaler().fit_transform(stimulus_factor_df.values)
     pca = PCA(n_components=2, random_state=0)
-    object_pca_2d = pca.fit_transform(object_factor_std)
+    stimulus_pca_2d = pca.fit_transform(stimulus_factor_std)
     factor_axis_vectors_2d = pca.components_.T
 
-    object_pca_df = pd.DataFrame(
-        object_pca_2d,
-        index=object_factor_df.index,
+    stimulus_pca_df = pd.DataFrame(
+        stimulus_pca_2d,
+        index=stimulus_factor_df.index,
         columns=["PC1", "PC2"],
     )
     plt.axhline(0, color="gray", linewidth=0.8)
     plt.axvline(0, color="gray", linewidth=0.8)
-    plt.scatter(object_pca_df["PC1"], object_pca_df["PC2"], s=20)
+    plt.scatter(stimulus_pca_df["PC1"], stimulus_pca_df["PC2"], s=20)
 
-    for object_code, row in object_pca_df.iterrows():
-        plt.text(row["PC1"] + 0.03, row["PC2"] + 0.03, object_code, fontsize=10)
+    for stimulus_code, row in stimulus_pca_df.iterrows():
+        plt.text(row["PC1"] + 0.03, row["PC2"] + 0.03, stimulus_code, fontsize=10)
 
     arrow_scale = 1.5
     for i, feature_name in enumerate(factor_names):

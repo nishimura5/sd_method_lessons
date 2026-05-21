@@ -28,7 +28,7 @@ class SDApp:
         self.score_df = None
         self.factor_names = None
         self.corr_df = None
-        self.tar_obj_table = {}  # 分析対象の刺激名のホワイトリスト、{"colname": [obj1, obj2, ...], ...} の形式
+        self.target_stimulus_table = {}  # 分析対象の刺激名のホワイトリスト、{"colname": [stimulus1, stimulus2, ...], ...} の形式
         self.invert_map = {}
 
         set_japanese_font()
@@ -49,15 +49,17 @@ class SDApp:
         frame_row = ttk.Frame(self.root)
         frame_row.pack(fill=tk.X, padx=10, pady=5)
 
-        frame_obj = ttk.LabelFrame(frame_row, text="Stimulus Column", padding=10)
-        frame_obj.pack(side=tk.LEFT, fill=tk.X, padx=(5, 2))
+        frame_stimulus = ttk.LabelFrame(frame_row, text="Stimulus Column", padding=10)
+        frame_stimulus.pack(side=tk.LEFT, fill=tk.X, padx=(5, 2))
 
-        self.obj_col_var = tk.StringVar()
-        self.obj_col_combo = ttk.Combobox(frame_obj, textvariable=self.obj_col_var, state="readonly", width=16)
-        self.obj_col_combo.pack(side=tk.LEFT)
+        self.stimulus_col_var = tk.StringVar()
+        self.stimulus_col_combo = ttk.Combobox(
+            frame_stimulus, textvariable=self.stimulus_col_var, state="readonly", width=16
+        )
+        self.stimulus_col_combo.pack(side=tk.LEFT)
 
         # === 刺激名フィルターダイアログを開くボタン ===
-        ttk.Button(frame_obj, text="Filter...", command=self._open_stimulus_filter_dialog).pack(
+        ttk.Button(frame_stimulus, text="Filter...", command=self._open_stimulus_filter_dialog).pack(
             side=tk.LEFT, padx=(5, 0)
         )
 
@@ -272,9 +274,9 @@ class SDApp:
 
         # カラム一覧を刺激名コンボボックスに設定
         columns = list(self.df.columns)
-        self.obj_col_combo["values"] = columns
+        self.stimulus_col_combo["values"] = columns
         if columns:
-            self.obj_col_combo.current(0)
+            self.stimulus_col_combo.current(0)
 
         # 回答者名カラム候補を設定（空欄 + 全カラム）
         self.resp_col_combo["values"] = [""] + columns
@@ -322,11 +324,11 @@ class SDApp:
         if self.df is None:
             messagebox.showwarning("Warning", "Please load a CSV file first.")
             return
-        obj_col = self.obj_col_var.get()
-        if obj_col not in self.tar_obj_table.keys():
-            self.tar_obj_table[obj_col] = sorted(self.df[obj_col].unique().tolist())
-        all_obj_list = sorted(self.df[obj_col].unique().tolist())
-        tar_obj_list = self.tar_obj_table.get(obj_col, all_obj_list)
+        stimulus_col = self.stimulus_col_var.get()
+        if stimulus_col not in self.target_stimulus_table.keys():
+            self.target_stimulus_table[stimulus_col] = sorted(self.df[stimulus_col].unique().tolist())
+        all_stimuli = sorted(self.df[stimulus_col].unique().tolist())
+        target_stimuli = self.target_stimulus_table.get(stimulus_col, all_stimuli)
 
         # ダイアログを作成
         dialog = tk.Toplevel(self.root)
@@ -340,16 +342,16 @@ class SDApp:
         frame.pack(fill=tk.BOTH, expand=True)
         # 刺激のチェックボックスを配置
         check_vars = {}
-        for obj in all_obj_list:
-            var = tk.BooleanVar(value=obj in tar_obj_list)
-            check_vars[obj] = var
-            cb = ttk.Checkbutton(frame, text=obj, variable=var)
+        for stimulus in all_stimuli:
+            var = tk.BooleanVar(value=stimulus in target_stimuli)
+            check_vars[stimulus] = var
+            cb = ttk.Checkbutton(frame, text=stimulus, variable=var)
             cb.pack(anchor=tk.W, pady=1, padx=10)
 
         # OKボタン
         def on_ok():
-            obj_list = [obj for obj, var in check_vars.items() if var.get()]
-            self.tar_obj_table[obj_col] = obj_list
+            stimuli = [stimulus for stimulus, var in check_vars.items() if var.get()]
+            self.target_stimulus_table[stimulus_col] = stimuli
             dialog.destroy()
 
         ttk.Button(frame, text="OK", command=on_ok).pack(pady=10)
@@ -423,8 +425,8 @@ class SDApp:
             messagebox.showwarning("Warning", "Please load a CSV file first.")
             return
 
-        obj_col = self.obj_col_var.get()
-        if not obj_col:
+        stimulus_col = self.stimulus_col_var.get()
+        if not stimulus_col:
             messagebox.showwarning("Warning", "Please select a stimulus column.")
             return
 
@@ -434,8 +436,8 @@ class SDApp:
             return
 
         try:
-            tar_stims = self.tar_obj_table.get(obj_col, self.df[obj_col].unique())
-            filtered_df = self.df[self.df[obj_col].isin(tar_stims)]
+            target_stimuli = self.target_stimulus_table.get(stimulus_col, self.df[stimulus_col].unique())
+            filtered_df = self.df[self.df[stimulus_col].isin(target_stimuli)]
 
             if self.corr_name_var.get() == "polychoric":
                 n_iter = int(self.parallel_analysis_iter_var.get())
@@ -474,12 +476,12 @@ class SDApp:
                 corr=self.corr_name_var.get(),
             )
 
-            # 因子得点にオブジェクトカラムを付与し、オブジェクトごとに平均
+            # 因子得点に刺激名カラムを付与し、刺激ごとに平均
             resp_col = self.resp_col_var.get()
             if resp_col:
                 factor_score_df[resp_col] = filtered_df.loc[factor_score_df.index, resp_col].values
-            factor_score_df[obj_col] = filtered_df.loc[factor_score_df.index, obj_col].values
-            group_cols = [resp_col, obj_col] if resp_col else [obj_col]
+            factor_score_df[stimulus_col] = filtered_df.loc[factor_score_df.index, stimulus_col].values
+            group_cols = [resp_col, stimulus_col] if resp_col else [stimulus_col]
             score_df = factor_score_df.groupby(group_cols).mean()
             # Sort factors
             loading_df["max_abs_loading"] = loading_df.abs().max(axis=1)
