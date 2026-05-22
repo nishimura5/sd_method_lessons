@@ -6,7 +6,7 @@ from tkinter import filedialog, messagebox, ttk
 import pandas as pd
 
 from sd_plot import plot_factor_loadings, plot_pca
-from sd_utils import (
+from sd_funcs import (
     factor_analysis,
     get_japanese_monospace_font,
     print_parallel_analysis_summary,
