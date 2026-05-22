@@ -11,7 +11,6 @@ scale_cols = [col for col in src_df.columns if "-" in col]
 # 集計表を作成
 melted_df = src_df.melt(id_vars=["stimulus_id"], value_vars=scale_cols, var_name="形容詞対")
 heatmap_df = melted_df.pivot_table(index="形容詞対", columns="stimulus_id", values="value", aggfunc="mean")
-heatmap_df = heatmap_df.reindex(index=scale_cols)
 
 print("評定の平均値 (全刺激):")
 print(heatmap_df)

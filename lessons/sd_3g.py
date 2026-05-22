@@ -12,7 +12,6 @@ scale_cols = [col for col in src_df.columns if "-" in col]
 # 集計表を作成
 melted_df = src_df.melt(id_vars=["stimulus_id"], value_vars=scale_cols, var_name="形容詞対")
 heatmap_df = melted_df.pivot_table(index="形容詞対", columns="stimulus_id", values="value", aggfunc="mean")
-heatmap_df = heatmap_df.reindex(index=scale_cols)
 
 # グラフ描画
 plt.imshow(heatmap_df.values, aspect="auto", vmin=1, vmax=7, cmap="coolwarm")
