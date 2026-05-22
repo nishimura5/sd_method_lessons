@@ -11,22 +11,14 @@ src_df = pd.read_csv(csv_file_path)
 
 # 行数をカウントする
 num_rows = src_df.index.size
-print(f"ファイル名: {csv_file_path}\n行数: {num_rows}行\n")
-
-# "評価."で始まるカラムをscale_colsに格納
-scale_cols = [col for col in src_df.columns if "-" in col]
-print("\n形容詞対:")
-for col in scale_cols:
-    print(f"  {col}")
+print(f"ファイル名: {csv_file_path}\n行数: {num_rows}行")
 
 # "stimulus_id"カラムのユニークな値をstimulus_namesに格納して表示
-stimulus_col_name = "stimulus_id"
-stimulus_names = src_df[stimulus_col_name].unique()
-print(f"\n'{stimulus_col_name}' の一覧:")
+stimulus_names = src_df["stimulus_id"].unique()
+print("\n'stimulus_id' の一覧:")
 print(", ".join(stimulus_names))
 
 # "respondent_id"カラムのユニークな値をsbj_namesに格納して表示
-sbj_col_name = "respondent_id"
-sbj_names = src_df[sbj_col_name].unique()
-print(f"\n'{sbj_col_name}' の一覧:")
+sbj_names = src_df["respondent_id"].unique()
+print("\n'respondent_id' の一覧:")
 print(", ".join(sbj_names))
