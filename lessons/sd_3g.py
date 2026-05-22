@@ -10,7 +10,7 @@ src_df = pd.read_csv(csv_file_path)
 scale_cols = [col for col in src_df.columns if "-" in col]
 
 # 集計表を作成
-melted_df = src_df.melt(id_vars=["stimulus_id"], value_vars=scale_cols, var_name="形容詞対")
+melted_df = src_df.melt(id_vars=["respondent_id", "stimulus_id"], value_vars=scale_cols, var_name="形容詞対")
 heatmap_df = melted_df.pivot_table(index="形容詞対", columns="stimulus_id", values="value", aggfunc="mean")
 
 # グラフ描画

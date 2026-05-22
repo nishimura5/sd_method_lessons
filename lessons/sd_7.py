@@ -27,9 +27,8 @@ invert_list = [
 ]
 
 # 集計表を作成
-melted_df = src_df.melt(id_vars=["stimulus_id"], value_vars=scale_cols, var_name="形容詞対")
+melted_df = src_df.melt(id_vars=["respondent_id", "stimulus_id"], value_vars=scale_cols, var_name="形容詞対")
 heatmap_df = melted_df.pivot_table(index="形容詞対", columns="stimulus_id", values="value", aggfunc="mean")
-heatmap_df = heatmap_df.reindex(index=sorted_scale_cols)
 # ここで表示用にリネーム
 heatmap_df.index = heatmap_df.index.str.replace(r"(.+)-(.+)", r"\1 -- \2", regex=True)
 

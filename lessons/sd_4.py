@@ -13,9 +13,8 @@ src_df = pd.read_csv(csv_file_path)
 scale_cols = [col for col in src_df.columns if "-" in col]
 
 # 全刺激の回答件数のsumを集計
-melted_df = src_df.melt(value_vars=scale_cols, var_name="形容詞対")
+melted_df = src_df.melt(id_vars=["respondent_id", "stimulus_id"], value_vars=scale_cols, var_name="形容詞対")
 heatmap_df = melted_df.pivot_table(index="形容詞対", columns="value", aggfunc="size", fill_value=0)
-heatmap_df = heatmap_df.reindex(index=scale_cols, columns=range(1, 8), fill_value=0)
 
 # 標準偏差を計算
 std_series = src_df[scale_cols].std()
