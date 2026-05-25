@@ -1,3 +1,23 @@
+"""SD法レッスン用ユーティリティAPI。
+
+このモジュールは、レッスンスクリプトから利用する共通APIを提供します。
+
+公開API:
+    get_csv_path(tar_file_name, tar_dir="../sample_data")
+        読み込み用CSVファイルの絶対パスを返す。
+    set_csv_path(tar_file_name, tar_dir="~/Desktop")
+        保存用CSVファイルのパスを返す。
+    set_japanese_font()
+        pandasとmatplotlibの日本語表示設定を行う。
+    factor_analysis_with_varimax(src_df, tar_cols, factor_names)
+        Varimax回転つき因子分析を実行し、因子負荷量と因子得点を返す。
+    compute_eigenvalues(src_df, tar_cols)
+        Pearson相関行列の固有値を降順で返す。
+
+データ前提:
+    因子分析と固有値算出で指定するtar_colsは、数値列である必要があります。
+"""
+
 import os
 import platform
 
@@ -9,7 +29,26 @@ from sklearn.preprocessing import StandardScaler
 
 
 def get_csv_path(tar_file_name, tar_dir="../sample_data"):
-    # For loading CSV file from a specified directory (default: ../sample_data)
+    """読み込み用CSVファイルの絶対パスを返す。
+
+    指定されたファイル名を、sd_utils.pyから見たディレクトリに結合して
+    絶対パスに解決します。デフォルトでは`../sample_data`を参照します。
+
+    Args:
+        tar_file_name (str): 読み込むCSVファイル名。
+        tar_dir (str): CSVファイルが置かれているディレクトリ。
+            sd_utils.pyからの相対パス、または結合可能なパスを指定します。
+
+    Returns:
+        str: CSVファイルの絶対パス。
+
+    Raises:
+        FileNotFoundError: 解決後のCSVファイルが存在しない場合。
+
+    Example:
+        >>> csv_file_path = get_csv_path("sample_sd.csv")
+        >>> src_df = pd.read_csv(csv_file_path)
+    """
     # このファイルが置かれているディレクトリをcurrent_dirに格納
     current_dir = os.path.dirname(os.path.abspath(__file__))
     resolved_dir = os.path.abspath(os.path.join(current_dir, tar_dir))
@@ -21,6 +60,25 @@ def get_csv_path(tar_file_name, tar_dir="../sample_data"):
 
 
 def set_csv_path(tar_file_name, tar_dir="~/Desktop"):
+    """保存用CSVファイルのパスを返す。
+
+    指定された保存先ディレクトリとファイル名を結合して、保存用パスを返します。
+    この関数はパスを作成するだけで、CSVファイル自体は作成しません。
+
+    Args:
+        tar_file_name (str): 保存先CSVファイル名。
+        tar_dir (str): 保存先ディレクトリ。`~`はユーザーホームに展開されます。
+
+    Returns:
+        str: 保存先CSVファイルのパス。
+
+    Raises:
+        FileNotFoundError: 保存先ディレクトリが存在しない場合。
+
+    Example:
+        >>> output_path = set_csv_path("factor_loadings.csv")
+        >>> rotated_loading_df.to_csv(output_path, encoding="utf-8-sig")
+    """
     resolved_dir = os.path.expanduser(tar_dir)
     if not os.path.exists(resolved_dir):
         raise FileNotFoundError(f"Directory not found: {resolved_dir}")
@@ -30,6 +88,22 @@ def set_csv_path(tar_file_name, tar_dir="~/Desktop"):
 
 
 def set_japanese_font():
+    """pandasとmatplotlibの日本語表示設定を行う。
+
+    Args:
+        なし。
+
+    Returns:
+        None
+
+    Side Effects:
+        pandasの`display.unicode.east_asian_width`をTrueに設定します。
+        macOSではmatplotlibのフォントを`Hiragino Sans`に設定します。
+        macOS以外ではmatplotlibのフォントを`Yu Gothic`に設定します。
+
+    Example:
+        >>> set_japanese_font()
+    """
     # Enable better alignment for Japanese characters in DataFrame display
     pd.set_option("display.unicode.east_asian_width", True)
 
@@ -41,15 +115,41 @@ def set_japanese_font():
 
 
 def factor_analysis_with_varimax(src_df, tar_cols, factor_names):
-    """因子分析を実行し、Varimax回転を適用して因子負荷量と因子得点を返す関数
+    """Varimax回転つき因子分析を実行する。
+
+    `tar_cols`で指定した列を標準化し、scikit-learnのFactorAnalysisで
+    因子分析を実行します。因子数は`factor_names`の要素数で決まります。
+
     Args:
-        src_df (pd.DataFrame): 元のデータフレーム
-        tar_cols (list): 因子分析に使用するカラム名のリスト
-        factor_names (list): 因子名のリスト（例: ["因子1", "因子2", "因子3"]）
+        src_df (pd.DataFrame): 入力データ。
+        tar_cols (list[str]): 因子分析に使用する数値列名のリスト。
+        factor_names (list[str]): 出力する因子名のリスト。
+            例: ["因子1", "因子2", "因子3"]
+
     Returns:
-        tuple: (rotated_loading_df, factor_score_df)
-            rotated_loading_df (pd.DataFrame): 因子負荷量
-            factor_score_df (pd.DataFrame): 因子得点
+        tuple[pd.DataFrame, pd.DataFrame]:
+            (rotated_loading_df, factor_score_df)を返します。
+
+            rotated_loading_df:
+                indexは`tar_cols`、columnsは`factor_names`です。
+                値はVarimax回転後の因子負荷量です。
+            factor_score_df:
+                indexは`src_df.index`、columnsは`factor_names`です。
+                値は各行の因子得点です。
+
+    Raises:
+        KeyError: `tar_cols`に存在しない列名が含まれる場合。
+        ValueError: 非数値データ、欠損値、データ不足、因子数不整合などで
+            scikit-learnの処理に失敗した場合。
+
+    Example:
+        >>> scale_cols = [col for col in src_df.columns if "-" in col]
+        >>> factor_names = ["Factor1", "Factor2"]
+        >>> loading_df, score_df = factor_analysis_with_varimax(
+        ...     src_df,
+        ...     scale_cols,
+        ...     factor_names,
+        ... )
     """
     n_factors = len(factor_names)
     vals = src_df[tar_cols].values
@@ -64,12 +164,28 @@ def factor_analysis_with_varimax(src_df, tar_cols, factor_names):
 
 
 def compute_eigenvalues(src_df, tar_cols):
-    """Pearson相関行列の固有値を降順で返す関数
+    """Pearson相関行列の固有値を降順で返す。
+
+    `tar_cols`で指定した列から欠損値を含む行を除外し、標準化後に
+    Pearson相関行列を作成します。その固有値を大きい順に並べて返します。
+    因子数を検討するための参考値として利用できます。
+
     Args:
-        src_df (pd.DataFrame): 元のデータフレーム
-        tar_cols (list): 因子分析に使用するカラム名のリスト
+        src_df (pd.DataFrame): 入力データ。
+        tar_cols (list[str]): 固有値算出に使用する数値列名のリスト。
+
     Returns:
-        np.ndarray: 固有値の配列（降順）
+        np.ndarray: Pearson相関行列の固有値。降順にソート済み。
+
+    Raises:
+        KeyError: `tar_cols`に存在しない列名が含まれる場合。
+        ValueError: 非数値データ、欠損除外後のデータ不足などで
+            numpyまたはscikit-learnの処理に失敗した場合。
+
+    Example:
+        >>> scale_cols = [col for col in src_df.columns if "-" in col]
+        >>> eigenvalues = compute_eigenvalues(src_df, scale_cols)
+        >>> print(eigenvalues)
     """
     vals = src_df[tar_cols].dropna().values
     standard_vals = StandardScaler().fit_transform(vals)
