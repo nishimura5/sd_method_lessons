@@ -47,7 +47,6 @@ def plot_factor_loadings(loading_df, title, inverted_rows=None, promax_corr_df=N
     plt.show()
 
 
-
 def plot_pca(stimulus_factor_df, factor_names, title):
     stimulus_factor_std = StandardScaler().fit_transform(stimulus_factor_df.values)
     pca = PCA(n_components=2, random_state=0)
