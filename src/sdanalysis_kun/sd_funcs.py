@@ -147,65 +147,32 @@ def compute_cronbach_alpha(src_df, tar_cols, reverse_cols=None, scale_min=1, sca
     Args:
         src_df (pd.DataFrame): 元のデータフレーム
         tar_cols (list): α係数算出に使用するカラム名のリスト
-        reverse_cols (list | str | None): 反転項目として処理するカラム名
+        reverse_cols (list | None): 反転項目のtar_colsに対応するboolリスト
         scale_min (float): 尺度の最小値。デフォルトは1
         scale_max (float): 尺度の最大値。デフォルトは7
 
     Returns:
         float: Cronbachのα係数
     """
-    try:
-        n_items = len(tar_cols)
-        if n_items < 2:
-            raise ValueError("At least 2 items are required to compute Cronbach's alpha.")
+    n_items = len(tar_cols)
+    if n_items < 2:
+        raise ValueError("At least 2 items are required to compute Cronbach's alpha.")
 
-        if reverse_cols is None:
-            reverse_cols = []
-        elif isinstance(reverse_cols, str):
-            reverse_cols = [reverse_cols]
-        else:
-            reverse_cols = list(reverse_cols)
+    numeric_df = src_df[tar_cols].dropna().astype(float)
+    if len(numeric_df) < 2:
+        raise ValueError("At least 2 valid rows are required after dropping missing values.")
 
-        missing_reverse_cols = [col for col in reverse_cols if col not in tar_cols]
-        if missing_reverse_cols:
-            raise ValueError(f"reverse_cols must be included in tar_cols: {missing_reverse_cols}")
-
-        try:
-            scale_min = float(scale_min)
-            scale_max = float(scale_max)
-        except (TypeError, ValueError) as e:
-            raise ValueError("scale_min and scale_max must be numeric.") from e
-        if not np.all(np.isfinite([scale_min, scale_max])):
-            raise ValueError("scale_min and scale_max must be finite values.")
-        if scale_min >= scale_max:
-            raise ValueError("scale_min must be smaller than scale_max.")
-
-        item_df = src_df[tar_cols].dropna()
-        if len(item_df) < 2:
-            raise ValueError("At least 2 valid rows are required after dropping missing values.")
-
-        try:
-            numeric_df = item_df.astype(float)
-        except ValueError as e:
-            raise ValueError("All target columns must be numeric to compute Cronbach's alpha.") from e
-
+    if reverse_cols is not None:
+        reverse_cols = [col for col, invert in zip(tar_cols, reverse_cols) if invert]
         if reverse_cols:
-            numeric_df = numeric_df.copy()
             numeric_df.loc[:, reverse_cols] = scale_min + scale_max - numeric_df.loc[:, reverse_cols]
 
-        item_variances = numeric_df.var(axis=0, ddof=1)
-        total_scores = numeric_df.sum(axis=1)
-        total_variance = total_scores.var(ddof=1)
+    total_variance = numeric_df.sum(axis=1).var(ddof=1)
+    if total_variance == 0:
+        raise ValueError("Total score variance must be greater than 0 to compute Cronbach's alpha.")
 
-        if not np.all(np.isfinite(item_variances)) or not np.isfinite(total_variance):
-            raise ValueError("Cronbach's alpha could not be computed because variance contains NaN or Inf.")
-        if total_variance == 0:
-            raise ValueError("Total score variance must be greater than 0 to compute Cronbach's alpha.")
-
-        alpha = (n_items / (n_items - 1)) * (1 - item_variances.sum() / total_variance)
-        return float(alpha)
-    except Exception as e:
-        raise ValueError(f"Cronbach's alpha failed: {e}") from e
+    alpha = (n_items / (n_items - 1)) * (1 - numeric_df.var(axis=0, ddof=1).sum() / total_variance)
+    return float(alpha)
 
 
 def run_parallel_analysis(
@@ -306,6 +273,59 @@ def print_parallel_analysis_summary(
         comp_df.round(digits).to_string(),
     ]
     return n_factors, "\n".join(summary_lines)
+
+
+def pickup_by_factor(loading_df):
+    """因子負荷行列から各因子に割り当てる項目と反転フラグを返す。
+
+    各項目は、因子負荷量の絶対値が最大の因子に割り当てる。同じ絶対値の
+    因子が複数ある場合は、DataFrame上で先に出現する因子を採用する。
+
+    Args:
+        loading_df (pd.DataFrame): 行が項目、列が因子の因子負荷行列
+
+    Returns:
+        list[dict]: 因子ごとの項目リストと反転フラグ
+            [
+                {
+                    "factor_name": "Factor1",
+                    "items": ["item1", "item2"],
+                    "invert": [True, False],
+                },
+                ...
+            ]
+    """
+    if not isinstance(loading_df, pd.DataFrame):
+        raise ValueError("loading_df must be a pandas DataFrame.")
+    if loading_df.empty or len(loading_df.index) == 0 or len(loading_df.columns) == 0:
+        raise ValueError("loading_df must have at least one item and one factor.")
+    if not loading_df.index.is_unique:
+        raise ValueError("loading_df index must contain unique item names.")
+    if not loading_df.columns.is_unique:
+        raise ValueError("loading_df columns must contain unique factor names.")
+
+    try:
+        numeric_df = loading_df.astype(float)
+    except (TypeError, ValueError) as e:
+        raise ValueError("All factor loadings must be numeric.") from e
+
+    if not np.all(np.isfinite(numeric_df.to_numpy())):
+        raise ValueError("Factor loadings must be finite values.")
+
+    best_factors = numeric_df.abs().idxmax(axis=1)
+    picked = []
+    for factor_name in numeric_df.columns:
+        factor_items = best_factors.index[best_factors == factor_name].tolist()
+        invert_flags = [bool(numeric_df.loc[item, factor_name] < 0) for item in factor_items]
+        picked.append(
+            {
+                "factor_name": factor_name,
+                "items": factor_items,
+                "invert": invert_flags,
+            }
+        )
+
+    return picked
 
 
 def factor_analysis(src_df, tar_cols, factor_names, rotation="No rotation", corr="pearson"):

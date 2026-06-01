@@ -5,13 +5,15 @@ from tkinter import filedialog, messagebox, ttk
 
 import pandas as pd
 
-from .sd_plot import plot_factor_loadings, plot_pca
 from .sd_funcs import (
+    compute_cronbach_alpha,
     factor_analysis,
     get_japanese_monospace_font,
+    pickup_by_factor,
     print_parallel_analysis_summary,
     set_japanese_font,
 )
+from .sd_plot import plot_factor_loadings, plot_pca
 from .tooltip import ToolTip
 
 
@@ -573,12 +575,24 @@ class SDApp:
             else:
                 caption = "Corr: Pearson\n"
                 caption += "Parallel analysis percentile: 95th"
+
+            # 各因子に対してCronbach's alphaを計算してキャプションに追加
+            factor_items = pickup_by_factor(self.loading_df)
+            scale_num = int(self.scale_var.get())
+            cronbach_caption = "Cronbach's alpha:\n"
+            for factor in factor_items:
+                if len(factor["items"]) >= 2:
+                    alpha = compute_cronbach_alpha(self.df[factor["items"]], factor["items"], factor["invert"], 1.0, scale_num)
+                    cronbach_caption += f"{factor['factor_name']}: {alpha:.3f},  "
+                else:
+                    cronbach_caption += f"{factor['factor_name']}: N/A (only {len(factor['items'])} item),  "
+
             plot_factor_loadings(
                 plot_df,
                 title=title,
                 inverted_rows=inverted_rows,
                 promax_corr_df=self.corr_df if self.current_rotation == "promax" else None,
-                caption=caption,
+                caption=caption + cronbach_caption,
             )
 
     def _export_loadings_csv(self):

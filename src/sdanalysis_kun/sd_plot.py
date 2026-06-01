@@ -39,7 +39,7 @@ def plot_factor_loadings(loading_df, title, inverted_rows=None, promax_corr_df=N
         ax_corr.set_title("Promax Factor Correlations")
 
     plt.gcf().canvas.manager.set_window_title("Factor Loading Matrix")
-    plt.tight_layout(rect=[0, 0.05, 1, 1])  # 下部5%をキャプション用テキストのために予約
+    plt.tight_layout(rect=[0, 0.1, 1, 1])  # 下部10%をキャプション用テキストのために予約
     plt.show()
 
 
