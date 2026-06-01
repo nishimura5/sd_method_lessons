@@ -13,6 +13,8 @@
         Varimax回転つき因子分析を実行し、因子負荷量と因子得点を返す。
     compute_eigenvalues(src_df, tar_cols)
         Pearson相関行列の固有値を降順で返す。
+    compute_cronbach_alpha(src_df, tar_cols, reverse_cols=None, scale_min=1, scale_max=7)
+        Cronbachのα係数を返す。
 
 データ前提:
     因子分析と固有値算出で指定するtar_colsは、数値列である必要があります。
@@ -192,3 +194,82 @@ def compute_eigenvalues(src_df, tar_cols):
     corr_matrix = np.corrcoef(standard_vals, rowvar=False)
     eigenvalues = np.sort(np.linalg.eigvalsh(corr_matrix))[::-1]
     return eigenvalues
+
+
+def compute_cronbach_alpha(src_df, tar_cols, reverse_cols=None, scale_min=1, scale_max=7):
+    """Cronbachのα係数を返す。
+
+    `tar_cols`で指定した項目列から欠損値を含む行を除外し、各項目の分散と
+    合計得点の分散からCronbachのα係数を計算します。`reverse_cols`で指定した
+    反転項目は、`scale_min + scale_max - 値`に変換してから計算します。
+
+    Args:
+        src_df (pd.DataFrame): 入力データ。
+        tar_cols (list[str]): α係数算出に使用する項目列名のリスト。
+        reverse_cols (list[str] | str | None): 反転項目として処理する列名。
+            単一の列名文字列、列名リスト、またはNoneを指定します。
+        scale_min (float): 尺度の最小値。デフォルトは1。
+        scale_max (float): 尺度の最大値。デフォルトは7。
+
+    Returns:
+        float: Cronbachのα係数。
+
+    Raises:
+        KeyError: `tar_cols`に存在しない列名が含まれる場合。
+        ValueError: 項目数、データ数、数値変換、分散などの条件を満たさない場合。
+
+    Example:
+        >>> scale_cols = [col for col in src_df.columns if "-" in col]
+        >>> reverse_cols = ["たかい-やすい"]
+        >>> alpha = compute_cronbach_alpha(src_df, scale_cols, reverse_cols=reverse_cols)
+        >>> print(round(alpha, 3))
+    """
+    n_items = len(tar_cols)
+    if n_items < 2:
+        raise ValueError("At least 2 items are required to compute Cronbach's alpha.")
+
+    if reverse_cols is None:
+        reverse_cols = []
+    elif isinstance(reverse_cols, str):
+        reverse_cols = [reverse_cols]
+    else:
+        reverse_cols = list(reverse_cols)
+
+    missing_reverse_cols = [col for col in reverse_cols if col not in tar_cols]
+    if missing_reverse_cols:
+        raise ValueError(f"reverse_cols must be included in tar_cols: {missing_reverse_cols}")
+
+    try:
+        scale_min = float(scale_min)
+        scale_max = float(scale_max)
+    except (TypeError, ValueError) as e:
+        raise ValueError("scale_min and scale_max must be numeric.") from e
+    if not np.all(np.isfinite([scale_min, scale_max])):
+        raise ValueError("scale_min and scale_max must be finite values.")
+    if scale_min >= scale_max:
+        raise ValueError("scale_min must be smaller than scale_max.")
+
+    item_df = src_df[tar_cols].dropna()
+    if len(item_df) < 2:
+        raise ValueError("At least 2 valid rows are required after dropping missing values.")
+
+    try:
+        numeric_df = item_df.astype(float)
+    except ValueError as e:
+        raise ValueError("All target columns must be numeric to compute Cronbach's alpha.") from e
+
+    if reverse_cols:
+        numeric_df = numeric_df.copy()
+        numeric_df.loc[:, reverse_cols] = scale_min + scale_max - numeric_df.loc[:, reverse_cols]
+
+    item_variances = numeric_df.var(axis=0, ddof=1)
+    total_scores = numeric_df.sum(axis=1)
+    total_variance = total_scores.var(ddof=1)
+
+    if not np.all(np.isfinite(item_variances)) or not np.isfinite(total_variance):
+        raise ValueError("Cronbach's alpha could not be computed because variance contains NaN or Inf.")
+    if total_variance == 0:
+        raise ValueError("Total score variance must be greater than 0 to compute Cronbach's alpha.")
+
+    alpha = (n_items / (n_items - 1)) * (1 - item_variances.sum() / total_variance)
+    return float(alpha)

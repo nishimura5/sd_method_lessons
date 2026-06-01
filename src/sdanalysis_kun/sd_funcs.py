@@ -137,6 +137,77 @@ def set_japanese_font():
     plt.rcParams["font.family"] = get_japanese_proportional_font()
 
 
+def compute_cronbach_alpha(src_df, tar_cols, reverse_cols=None, scale_min=1, scale_max=7):
+    """Cronbachのα係数を返す。
+
+    `tar_cols`で指定した項目列から欠損値を含む行を除外し、各項目の分散と
+    合計得点の分散からCronbachのα係数を計算する。`reverse_cols`で指定した
+    反転項目は、`scale_min + scale_max - 値`に変換してから計算する。
+
+    Args:
+        src_df (pd.DataFrame): 元のデータフレーム
+        tar_cols (list): α係数算出に使用するカラム名のリスト
+        reverse_cols (list | str | None): 反転項目として処理するカラム名
+        scale_min (float): 尺度の最小値。デフォルトは1
+        scale_max (float): 尺度の最大値。デフォルトは7
+
+    Returns:
+        float: Cronbachのα係数
+    """
+    try:
+        n_items = len(tar_cols)
+        if n_items < 2:
+            raise ValueError("At least 2 items are required to compute Cronbach's alpha.")
+
+        if reverse_cols is None:
+            reverse_cols = []
+        elif isinstance(reverse_cols, str):
+            reverse_cols = [reverse_cols]
+        else:
+            reverse_cols = list(reverse_cols)
+
+        missing_reverse_cols = [col for col in reverse_cols if col not in tar_cols]
+        if missing_reverse_cols:
+            raise ValueError(f"reverse_cols must be included in tar_cols: {missing_reverse_cols}")
+
+        try:
+            scale_min = float(scale_min)
+            scale_max = float(scale_max)
+        except (TypeError, ValueError) as e:
+            raise ValueError("scale_min and scale_max must be numeric.") from e
+        if not np.all(np.isfinite([scale_min, scale_max])):
+            raise ValueError("scale_min and scale_max must be finite values.")
+        if scale_min >= scale_max:
+            raise ValueError("scale_min must be smaller than scale_max.")
+
+        item_df = src_df[tar_cols].dropna()
+        if len(item_df) < 2:
+            raise ValueError("At least 2 valid rows are required after dropping missing values.")
+
+        try:
+            numeric_df = item_df.astype(float)
+        except ValueError as e:
+            raise ValueError("All target columns must be numeric to compute Cronbach's alpha.") from e
+
+        if reverse_cols:
+            numeric_df = numeric_df.copy()
+            numeric_df.loc[:, reverse_cols] = scale_min + scale_max - numeric_df.loc[:, reverse_cols]
+
+        item_variances = numeric_df.var(axis=0, ddof=1)
+        total_scores = numeric_df.sum(axis=1)
+        total_variance = total_scores.var(ddof=1)
+
+        if not np.all(np.isfinite(item_variances)) or not np.isfinite(total_variance):
+            raise ValueError("Cronbach's alpha could not be computed because variance contains NaN or Inf.")
+        if total_variance == 0:
+            raise ValueError("Total score variance must be greater than 0 to compute Cronbach's alpha.")
+
+        alpha = (n_items / (n_items - 1)) * (1 - item_variances.sum() / total_variance)
+        return float(alpha)
+    except Exception as e:
+        raise ValueError(f"Cronbach's alpha failed: {e}") from e
+
+
 def run_parallel_analysis(
     src_df, tar_cols, corr="pearson", n_iter=500, percentile=95, random_state=0, progress_callback=None
 ):
