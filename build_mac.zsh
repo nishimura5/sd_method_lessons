@@ -102,6 +102,9 @@ PYINSTALLER_ARGS=(
   --clean
   --paths "$SRC_PATH"
   --collect-all "$PACKAGE_NAME"
+  --hidden-import matplotlib.backends.backend_tkagg
+  --hidden-import matplotlib.backends._backend_tk
+  --hidden-import matplotlib.backends._tkagg
   --name "$APP_NAME"
   --osx-bundle-identifier "$BUNDLE_ID"
 )

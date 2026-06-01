@@ -1,5 +1,9 @@
 import platform
 
+from .mpl_setup import configure_matplotlib_backend
+
+configure_matplotlib_backend()
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

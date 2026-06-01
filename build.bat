@@ -64,11 +64,11 @@ if errorlevel 1 exit /b 1
 
 echo ==^> Building Windows exe with PyInstaller
 if exist "%ICON_FILE%" (
-  uv run pyinstaller --onefile --windowed --clean --path "%SRC_PATH%" --collect-all "%PACKAGE_NAME%" -n "%APP_NAME%" --icon="%ICON_FILE%" --version-file="%VERSION_FILE%" "%ENTRY_SCRIPT%"
+  uv run pyinstaller --onefile --windowed --clean --path "%SRC_PATH%" --collect-all "%PACKAGE_NAME%" --hidden-import matplotlib.backends.backend_tkagg --hidden-import matplotlib.backends._backend_tk --hidden-import matplotlib.backends._tkagg -n "%APP_NAME%" --icon="%ICON_FILE%" --version-file="%VERSION_FILE%" "%ENTRY_SCRIPT%"
 ) else (
   echo Warning: icon file not found: %ICON_FILE%
   echo Building without a custom icon. Add icon.ico later and rerun for release builds.
-  uv run pyinstaller --onefile --windowed --clean --path "%SRC_PATH%" --collect-all "%PACKAGE_NAME%" -n "%APP_NAME%" --version-file="%VERSION_FILE%" "%ENTRY_SCRIPT%"
+  uv run pyinstaller --onefile --windowed --clean --path "%SRC_PATH%" --collect-all "%PACKAGE_NAME%" --hidden-import matplotlib.backends.backend_tkagg --hidden-import matplotlib.backends._backend_tk --hidden-import matplotlib.backends._tkagg -n "%APP_NAME%" --version-file="%VERSION_FILE%" "%ENTRY_SCRIPT%"
 )
 if errorlevel 1 exit /b 1
 

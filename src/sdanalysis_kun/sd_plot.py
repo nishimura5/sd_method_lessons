@@ -1,3 +1,7 @@
+from .mpl_setup import configure_matplotlib_backend
+
+configure_matplotlib_backend()
+
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.decomposition import PCA
