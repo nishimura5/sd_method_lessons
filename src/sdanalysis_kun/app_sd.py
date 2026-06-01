@@ -91,9 +91,8 @@ class SDApp:
             side=tk.LEFT,
         )
 
-        ttk.Button(frame_row, text="Run Analysis", command=self._run_analysis, width=14).pack(
-            side=tk.LEFT, padx=(5, 0), fill=tk.Y
-        )
+        self.btn_run_analysis = ttk.Button(frame_row, text="Run Analysis", command=self._run_analysis, width=14)
+        self.btn_run_analysis.pack(side=tk.LEFT, padx=(5, 0), fill=tk.Y)
 
         # === 左右分割: 形容詞対カラム選択（左）と結果表示（右） ===
         paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL, height=360)
@@ -144,6 +143,21 @@ class SDApp:
             frame_corr, textvariable=self.parallel_analysis_iter_var, width=8, state="readonly"
         )
         self.polychoric_entry.pack(side=tk.LEFT, padx=(5, 0))
+
+        frame_progress = ttk.Frame(frame_parallel)
+        frame_progress.pack(fill=tk.X, pady=(0, 7))
+        self.parallel_progress_label_var = tk.StringVar(value="")
+        ttk.Label(frame_progress, textvariable=self.parallel_progress_label_var, width=20).pack(
+            side=tk.LEFT, padx=(0, 5)
+        )
+        self.parallel_progress_var = tk.DoubleVar(value=0)
+        self.parallel_progress = ttk.Progressbar(
+            frame_progress,
+            variable=self.parallel_progress_var,
+            maximum=100,
+            mode="determinate",
+        )
+        self.parallel_progress.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.parallel_text = tk.Text(frame_parallel, wrap=tk.NONE, font=(get_japanese_monospace_font(), 11))
         parallel_scroll_y = ttk.Scrollbar(frame_parallel, orient=tk.VERTICAL, command=self.parallel_text.yview)
@@ -420,6 +434,15 @@ class SDApp:
             self.parallel_analysis_iter_var.set("500")
             self.polychoric_entry.configure(state="readonly")
 
+    def _update_parallel_progress(self, current, total):
+        if total <= 0:
+            percent = 0
+        else:
+            percent = max(0, min(100, current / total * 100))
+        self.parallel_progress_var.set(percent)
+        self.parallel_progress_label_var.set(f"Parallel: {current} / {total}")
+        self.root.update_idletasks()
+
     def _run_analysis(self):
         if self.df is None:
             messagebox.showwarning("Warning", "Please load a CSV file first.")
@@ -435,6 +458,7 @@ class SDApp:
             messagebox.showwarning("Warning", "Please select at least one adjective pair column.")
             return
 
+        self.btn_run_analysis.config(state=tk.DISABLED)
         try:
             target_stimuli = self.target_stimulus_table.get(stimulus_col, self.df[stimulus_col].unique())
             filtered_df = self.df[self.df[stimulus_col].isin(target_stimuli)]
@@ -444,9 +468,16 @@ class SDApp:
             else:
                 # Pearsonでは標準的なシミュレーション回数を使用
                 n_iter = 500
+            self._update_parallel_progress(0, n_iter)
             suggested_factors, parallel_str = print_parallel_analysis_summary(
-                filtered_df, selected_cols, corr=self.corr_name_var.get(), n_iter=n_iter
+                filtered_df,
+                selected_cols,
+                corr=self.corr_name_var.get(),
+                n_iter=n_iter,
+                progress_callback=self._update_parallel_progress,
             )
+            self.parallel_progress_label_var.set(f"Parallel: {n_iter} / {n_iter}")
+            self.root.update_idletasks()
 
             self.parallel_text.delete("1.0", tk.END)
             self.parallel_text.insert(tk.END, parallel_str)
@@ -513,7 +544,10 @@ class SDApp:
             self._update_stats_tree()
 
         except Exception as e:
+            self.parallel_progress_label_var.set("Analysis: failed")
             messagebox.showerror("Error", f"Factor analysis failed:\n{e}")
+        finally:
+            self.btn_run_analysis.config(state=tk.NORMAL)
 
     def _plot_loadings(self):
         if self.loading_df is not None:

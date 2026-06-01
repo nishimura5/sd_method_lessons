@@ -7,7 +7,6 @@ from factor_analyzer import FactorAnalyzer
 from ordinalcorr import polychoric
 from scipy.stats import norm
 from sklearn.preprocessing import StandardScaler
-from tqdm import tqdm
 
 
 def _to_ordinal_int(values):
@@ -29,6 +28,12 @@ def _validate_corr_matrix(corr_mat, context):
     """相関行列の数値妥当性を確認する。"""
     if not np.all(np.isfinite(corr_mat)):
         raise ValueError(f"{context}: correlation matrix contains NaN or Inf.")
+
+
+def _notify_progress(progress_callback, current, total):
+    """進捗通知用のコールバックが指定されている場合のみ呼び出す。"""
+    if progress_callback is not None:
+        progress_callback(current, total)
 
 
 def _category_probabilities(vals):
@@ -132,7 +137,9 @@ def set_japanese_font():
     plt.rcParams["font.family"] = get_japanese_proportional_font()
 
 
-def run_parallel_analysis(src_df, tar_cols, corr="pearson", n_iter=500, percentile=95, random_state=0):
+def run_parallel_analysis(
+    src_df, tar_cols, corr="pearson", n_iter=500, percentile=95, random_state=0, progress_callback=None
+):
     """
     併行分析を実行し、推奨因子数と比較表を返す。
     Args:
@@ -142,6 +149,7 @@ def run_parallel_analysis(src_df, tar_cols, corr="pearson", n_iter=500, percenti
         n_iter (int): ランダムデータのシミュレーション回数
         percentile (float): クリティカル値を決定するためのパーセンタイル
         random_state (int): 乱数シード
+        progress_callback (callable): 進捗更新用の関数。current, totalを受け取る
     """
     # Arg check
     if corr not in ["pearson", "polychoric"]:
@@ -170,8 +178,8 @@ def run_parallel_analysis(src_df, tar_cols, corr="pearson", n_iter=500, percenti
         if corr == "polychoric":
             probs_list = _category_probabilities(vals)
 
-        # tqdmを使用して進捗バーを表示する
-        for i in tqdm(range(n_iter), desc="Simulating random data"):
+        _notify_progress(progress_callback, 0, n_iter)
+        for i in range(n_iter):
             if corr == "polychoric":
                 simulated = _simulate_ordinal_data(n_samples, probs_list, rng)
                 sim_corr = _compute_corr_matrix(simulated, corr="polychoric")
@@ -180,6 +188,7 @@ def run_parallel_analysis(src_df, tar_cols, corr="pearson", n_iter=500, percenti
                 sim_corr = np.corrcoef(simulated, rowvar=False)
 
             random_eigs[i, :] = np.sort(np.linalg.eigvalsh(sim_corr))[::-1]
+            _notify_progress(progress_callback, i + 1, n_iter)
 
         crit_eigs = np.percentile(random_eigs, percentile, axis=0)
         retain_mask = obs_eigs > crit_eigs
@@ -201,7 +210,14 @@ def run_parallel_analysis(src_df, tar_cols, corr="pearson", n_iter=500, percenti
 
 
 def print_parallel_analysis_summary(
-    src_df, tar_cols, corr="pearson", n_iter=500, percentile=95, random_state=0, digits=2
+    src_df,
+    tar_cols,
+    corr="pearson",
+    n_iter=500,
+    percentile=95,
+    random_state=0,
+    digits=2,
+    progress_callback=None,
 ):
     """平行分析の結果を表示用文字列として返す。"""
     n_factors, comp_df = run_parallel_analysis(
@@ -211,6 +227,7 @@ def print_parallel_analysis_summary(
         n_iter=n_iter,
         percentile=percentile,
         random_state=random_state,
+        progress_callback=progress_callback,
     )
     summary_lines = [
         f"Recommended factors: {n_factors}",
