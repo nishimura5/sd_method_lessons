@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- Keep this file minimal. Add exceptions only when your app/frameworks need them. -->
+
+    <!-- Commonly needed by some Python GUI/native-extension stacks.
+         Remove it if the app works and notarizes without it. -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!-- Enable only if a dependency needs JIT or unsigned executable memory.
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    -->
+  </dict>
+</plist>

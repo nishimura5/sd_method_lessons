@@ -20,3 +20,24 @@ exclude-newer = "30 days"
 
 [tool.ruff]
 line-length = 120
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.11.0",
+    "pyinstaller-versionfile>=2.1",
+    "pytest>=8.3",
+]
+
+[project.scripts]
+sd-method-lessons = "sdanalysis_kun.cli:main"
+sdanalysis-kun = "sdanalysis_kun.cli:main"
+
+[project.gui-scripts]
+sd-method-lessons-gui = "sdanalysis_kun.cli:main"
+sdanalysis-kun-gui = "sdanalysis_kun.cli:main"
+
+[tool.hatch.version]
+path = "src/sdanalysis_kun/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sdanalysis_kun"]

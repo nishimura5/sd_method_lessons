@@ -5,20 +5,20 @@ from tkinter import filedialog, messagebox, ttk
 
 import pandas as pd
 
-from sd_plot import plot_factor_loadings, plot_pca
-from sd_funcs import (
+from .sd_plot import plot_factor_loadings, plot_pca
+from .sd_funcs import (
     factor_analysis,
     get_japanese_monospace_font,
     print_parallel_analysis_summary,
     set_japanese_font,
 )
-from tooltip import ToolTip
+from .tooltip import ToolTip
 
 
 class SDApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Semantic Differential Factor Analysis Tool")
+        self.root.title("SDAnalysis-kun")
         self.root.geometry("1000x700")
         self.root.minsize(800, 600)
 
