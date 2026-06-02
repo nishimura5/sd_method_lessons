@@ -21,8 +21,8 @@ class SDApp:
     def __init__(self, root):
         self.root = root
         self.root.title("SDAnalysis-kun")
-        self.root.geometry("1000x700")
-        self.root.minsize(800, 600)
+        self.root.geometry("1400x700")
+        self.root.minsize(700, 400)
 
         self.df = None
         self.check_vars = {}
