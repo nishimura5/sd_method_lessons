@@ -30,6 +30,7 @@ class SDApp:
         self.score_df = None
         self.factor_names = None
         self.corr_df = None
+        self.filtered_df = None
         self.target_stimulus_table = {}  # 分析対象の刺激名のホワイトリスト、{"colname": [stimulus1, stimulus2, ...], ...} の形式
         self.invert_map = {}
 
@@ -286,6 +287,8 @@ class SDApp:
             messagebox.showerror("Error", f"Failed to read CSV file:\n{e}")
             return
 
+        self.filtered_df = None
+
         self.file_path_var.set(path)
 
         # カラム一覧を刺激名コンボボックスに設定
@@ -410,9 +413,10 @@ class SDApp:
             sorted_cols = selected_cols
 
         for col in sorted_cols:
+            stats_df = self.filtered_df if self.filtered_df is not None else self.df
             inverted = self.invert_map.get(col, False)
-            mean_val = self.df[col].mean()
-            std_val = self.df[col].std()
+            mean_val = stats_df[col].mean()
+            std_val = stats_df[col].std()
             if inverted:
                 mean_val = int(self.scale_var.get()) + 1 - mean_val
             row_vals = [f"{mean_val:.3f}", f"{std_val:.3f}"]
@@ -463,7 +467,8 @@ class SDApp:
         self.btn_run_analysis.config(state=tk.DISABLED)
         try:
             target_stimuli = self.target_stimulus_table.get(stimulus_col, self.df[stimulus_col].unique())
-            filtered_df = self.df[self.df[stimulus_col].isin(target_stimuli)]
+            filtered_df = self.df[self.df[stimulus_col].isin(target_stimuli)].copy()
+            self.filtered_df = filtered_df
 
             if self.corr_name_var.get() == "polychoric":
                 n_iter = int(self.parallel_analysis_iter_var.get())
@@ -571,18 +576,21 @@ class SDApp:
             inverted_rows = [self.invert_map.get(col, False) for col in original_cols]
             if self.corr_name_var.get() == "polychoric":
                 caption = "Corr: Polychoric\n"
-                caption += f"Parallel analysis iterations: {self.parallel_analysis_iter_var.get()}  Percentile: 95th"
+                caption += f"Parallel analysis iterations: {self.parallel_analysis_iter_var.get()}  Percentile: 95th\n"
             else:
                 caption = "Corr: Pearson\n"
-                caption += "Parallel analysis percentile: 95th"
+                caption += "Parallel analysis percentile: 95th\n"
 
             # 各因子に対してCronbach's alphaを計算してキャプションに追加
             factor_items = pickup_by_factor(self.loading_df)
+            alpha_df = self.filtered_df if self.filtered_df is not None else self.df
             scale_num = int(self.scale_var.get())
-            cronbach_caption = "Cronbach's alpha:\n"
+            cronbach_caption = f"Cronbach's alpha (filtered n={len(alpha_df)}):\n"
             for factor in factor_items:
                 if len(factor["items"]) >= 2:
-                    alpha = compute_cronbach_alpha(self.df[factor["items"]], factor["items"], factor["invert"], 1.0, scale_num)
+                    alpha = compute_cronbach_alpha(
+                        alpha_df[factor["items"]], factor["items"], factor["invert"], 1.0, scale_num
+                    )
                     cronbach_caption += f"{factor['factor_name']}: {alpha:.3f},  "
                 else:
                     cronbach_caption += f"{factor['factor_name']}: N/A (only {len(factor['items'])} item),  "
