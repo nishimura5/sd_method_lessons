@@ -41,6 +41,7 @@ SD法（Semantic Differential法）の基本的な集計から、因子分析、
 │   ├── sd_9.py
 │   └── sd_utils.py
 ├── src/
+│   ├── README.md
 │   └── sdanalysis_kun/
 │       ├── app_sd.py
 │       ├── cli.py
@@ -218,37 +219,9 @@ factor_names = ["因子1", "因子2", "因子3"]
 
 5件法など別の尺度を使う場合は、反転処理の式を尺度に合わせて変更してください。
 
-## GUI アプリ: SDAnalysis-kun
+## GUI アプリ
 
-`src/sdanalysis_kun/` には、Tkinter ベースの GUI アプリが含まれています。レッスンコードで行っている分析を、CSV 選択とボタン操作で試すための補助ツールです。
-
-起動コマンド:
-
-```bash
-uv run sdanalysis-kun
-```
-
-または:
-
-```bash
-uv run sd-method-lessons
-```
-
-GUI では主に以下の操作ができます。
-
-- CSV ファイルの選択
-- 刺激列の選択
-- 回答者列の選択（任意）
-- 分析対象の刺激フィルタ
-- 形容詞対列の選択
-- 形容詞対名を整形する正規表現の指定
-- 5件法・7件法の選択
-- Pearson 相関または polychoric 相関による併行分析
-- 因子数の指定、または併行分析結果（PA）に基づく因子数指定
-- Promax 回転、Varimax 回転、無回転の選択
-- 因子負荷行列の表示・プロット・CSV 出力
-- 刺激ごとの因子得点の表示・CSV 出力
-- PCA による刺激マップの表示
+SDAnalysis-kun の詳細は `src/README.md` を参照してください。
 
 ## アプリのビルド
 
