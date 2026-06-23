@@ -33,11 +33,17 @@ set -euo pipefail
 ROOT_DIR="${0:A:h}"
 cd "$ROOT_DIR"
 
+DEFAULT_APP_VERSION="$(awk -F'"' '/^version = / {print $2; exit}' pyproject.toml 2>/dev/null || true)"
+if [[ -z "$DEFAULT_APP_VERSION" ]]; then
+  DEFAULT_APP_VERSION="0.0.0"
+fi
+
 APP_NAME="${APP_NAME:-SDAnalysis-kun}"
 PACKAGE_NAME="${PACKAGE_NAME:-sdanalysis_kun}"
 ENTRY_SCRIPT="${ENTRY_SCRIPT:-./src/sdanalysis_kun/cli.py}"
 SRC_PATH="${SRC_PATH:-./src}"
 ICON_FILE="${ICON_FILE:-./src/sdanalysis_kun/img/icon.icns}"
+APP_VERSION="${APP_VERSION:-$DEFAULT_APP_VERSION}"
 
 # Replace for real distribution. Reverse-DNS format is recommended.
 BUNDLE_ID="${BUNDLE_ID:-com.example.sdanalysiskun}"
@@ -130,6 +136,17 @@ PYINSTALLER_ARGS+=("$ENTRY_SCRIPT")
 uv run pyinstaller "${PYINSTALLER_ARGS[@]}"
 
 [[ -d "$APP_PATH" ]] || { echo "Error: app bundle was not created: $APP_PATH" >&2; exit 1; }
+
+INFO_PLIST="${APP_PATH}/Contents/Info.plist"
+if [[ -f "$INFO_PLIST" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$INFO_PLIST" >/dev/null 2>&1 \
+    || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $APP_VERSION" "$INFO_PLIST"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $APP_VERSION" "$INFO_PLIST" >/dev/null 2>&1 \
+    || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $APP_VERSION" "$INFO_PLIST"
+  echo "==> Set bundle version: $APP_VERSION"
+else
+  echo "Warning: Info.plist not found, skipped bundle version update: $INFO_PLIST"
+fi
 
 if [[ -n "$CODESIGN_IDENTITY" ]]; then
   echo "==> Signing final .app bundle"
