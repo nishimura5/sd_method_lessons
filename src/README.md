@@ -1,6 +1,13 @@
 # SDAnalysis-kun
 
+![SDAnalysis-kun main window](https://www.design.kyushu-u.ac.jp/~eigo/image/sdanalysis-kun/main_window.webp)
+
 `src/sdanalysis_kun/` contains a Tkinter-based GUI application. It is a companion tool for trying the analyses from the lesson code through CSV selection and button-based operations.
+
+## Downloads
+
+- [Download SDAnalysis-kun for Windows](https://github.com/nishimura5/sd_method_lessons/releases/download/v0.2.0/SDAnalysisKun020_win.zip)
+- [Download SDAnalysis-kun for macOS](https://github.com/nishimura5/sd_method_lessons/releases/download/v0.2.0/SDAnalysisKun020_mac.zip)
 
 Launch command:
 
