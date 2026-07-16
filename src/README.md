@@ -6,8 +6,8 @@
 
 ## Downloads
 
-- [Download SDAnalysis-kun for Windows](https://github.com/nishimura5/sd_method_lessons/releases/download/v0.2.0/SDAnalysisKun020_win.zip)
-- [Download SDAnalysis-kun for macOS](https://github.com/nishimura5/sd_method_lessons/releases/download/v0.2.0/SDAnalysisKun020_mac.zip)
+- [Download SDAnalysis-kun for Windows](https://github.com/nishimura5/sd_method_lessons/releases/download/v0.3.0/SDAnalysisKun030_win.zip)
+- [Download SDAnalysis-kun for macOS](https://github.com/nishimura5/sd_method_lessons/releases/download/v0.3.0/SDAnalysisKun030_mac.zip)
 
 Launch command:
 
