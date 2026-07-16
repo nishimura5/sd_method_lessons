@@ -36,3 +36,23 @@ The GUI mainly supports the following operations:
 - Display, plot, and export the factor loading matrix as CSV
 - Display and export the mean and standard deviation (SD) of factor scores by stimulus as CSV
 - Display a stimulus map with PCA based on mean factor scores; when a respondent column is selected, each stimulus is summarized by its centroid and a within-stimulus 1-SD covariance ellipse representing respondent variability
+
+## Expected CSV Structure
+
+SDAnalysis-kun assumes a table with the following layout.
+
+- The data is in long format for observations: each row is one response record (typically one respondent rating one stimulus).
+- A `stimulus_id` column exists and stores the stimulus identifier.
+- A `respondent_id` column exists and stores the respondent identifier.
+- Adjective-pair ratings are in wide format: each adjective pair is a separate numeric column.
+
+Example:
+
+```csv
+id,respondent_id,stimulus_id,fast-slow,bright-dark,soft-hard
+1,r_001,s_001,5,2,4
+2,r_001,s_002,3,4,2
+3,r_002,s_001,6,3,5
+```
+
+In short: observation keys (`stimulus_id`, `respondent_id`) are row-wise, and adjective pairs are column-wise.
