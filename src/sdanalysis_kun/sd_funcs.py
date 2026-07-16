@@ -332,6 +332,28 @@ def pickup_by_factor(loading_df):
     return picked
 
 
+def summarize_factor_scores(factor_score_df, group_cols, factor_names):
+    """因子得点を集計単位ごとに平均と標本標準偏差で要約する。
+
+    標準偏差はpandasの既定値（ddof=1）で計算するため、観測が1件だけの
+    グループではSDがNaNになる。
+
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame]:
+            PCA用の平均因子得点と、表示・出力用のMean/SD要約表。
+    """
+    grouped_factor_scores = factor_score_df.groupby(group_cols)[factor_names]
+    score_mean_df = grouped_factor_scores.mean()
+    score_sd_df = grouped_factor_scores.std()
+
+    score_summary_df = pd.DataFrame(index=score_mean_df.index)
+    for factor_name in factor_names:
+        score_summary_df[f"{factor_name} Mean"] = score_mean_df[factor_name]
+        score_summary_df[f"{factor_name} SD"] = score_sd_df[factor_name]
+
+    return score_mean_df, score_summary_df
+
+
 def factor_analysis(src_df, tar_cols, factor_names, rotation="No rotation", corr="pearson"):
     """因子分析を実行し、指定回転を適用して因子負荷量と因子得点を返す関数
     corr="polychoric" を選択することでPolychoric相関行列を用いた因子分析を実行できる。

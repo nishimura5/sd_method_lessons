@@ -12,6 +12,7 @@ from .sd_funcs import (
     pickup_by_factor,
     print_parallel_analysis_summary,
     set_japanese_font,
+    summarize_factor_scores,
 )
 from .sd_plot import plot_factor_loadings, plot_pca
 from .tooltip import ToolTip
@@ -28,6 +29,7 @@ class SDApp:
         self.check_vars = {}
         self.loading_df = None
         self.score_df = None
+        self.score_summary_df = None
         self.factor_names = None
         self.corr_df = None
         self.filtered_df = None
@@ -246,7 +248,7 @@ class SDApp:
         frame_bottom.columnconfigure(0, weight=1)
         frame_bottom.rowconfigure(0, weight=1)
 
-        frame_bottom_right = ttk.LabelFrame(frame_bottom, text="Factor Scores", padding=10)
+        frame_bottom_right = ttk.LabelFrame(frame_bottom, text="Factor Score Summary (Mean / SD)", padding=10)
         frame_bottom_right.grid(row=0, column=0, sticky="nsew")
         frame_bottom_right.grid_propagate(False)
 
@@ -257,7 +259,7 @@ class SDApp:
         self.btn_plot_pca = ttk.Button(frame_plot, text="Plot PCA Map", command=self._plot_pca, state=tk.DISABLED)
         self.btn_plot_pca.pack(side=tk.LEFT)
 
-        self.btn_export_csv = ttk.Button(frame_plot, text="Export Scores", command=self._export_csv, state=tk.DISABLED)
+        self.btn_export_csv = ttk.Button(frame_plot, text="Export Summary", command=self._export_csv, state=tk.DISABLED)
         self.btn_export_csv.pack(side=tk.LEFT, padx=(15, 0))
 
         # 因子負荷行列・因子得点の表示領域
@@ -514,13 +516,13 @@ class SDApp:
                 corr=self.corr_name_var.get(),
             )
 
-            # 因子得点に刺激名カラムを付与し、刺激ごとに平均
+            # 因子得点に識別用カラムを付与し、集計単位ごとに平均と標準偏差を計算
             resp_col = self.resp_col_var.get()
             if resp_col:
                 factor_score_df[resp_col] = filtered_df.loc[factor_score_df.index, resp_col].values
             factor_score_df[stimulus_col] = filtered_df.loc[factor_score_df.index, stimulus_col].values
             group_cols = [resp_col, stimulus_col] if resp_col else [stimulus_col]
-            score_df = factor_score_df.groupby(group_cols).mean()
+            score_df, score_summary_df = summarize_factor_scores(factor_score_df, group_cols, factor_names)
             # Sort factors
             loading_df["max_abs_loading"] = loading_df.abs().max(axis=1)
             loading_df["best_factor"] = loading_df.abs().idxmax(axis=1)
@@ -536,10 +538,12 @@ class SDApp:
             # 結果を表示
             self.result_text.delete("1.0", tk.END)
 
-            self.result_text.insert(tk.END, score_df.round(3).to_string() + "\n")
+            self.result_text.insert(tk.END, score_summary_df.round(3).to_string() + "\n")
 
             self.loading_df = loading_df
+            # PCAでは平均因子得点のみを使用する
             self.score_df = score_df
+            self.score_summary_df = score_summary_df
             self.corr_df = corr_df
             self.factor_names = factor_names
             self.btn_apply_reg.config(state=tk.NORMAL)
@@ -629,7 +633,7 @@ class SDApp:
         messagebox.showinfo("Export", f"Saved to:\n{path}")
 
     def _export_csv(self):
-        if self.score_df is None:
+        if self.score_summary_df is None:
             return
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         path = filedialog.asksaveasfilename(
@@ -641,7 +645,7 @@ class SDApp:
         )
         if not path:
             return
-        self.score_df.round(3).to_csv(path, encoding="utf-8-sig")
+        self.score_summary_df.round(3).to_csv(path, encoding="utf-8-sig")
         messagebox.showinfo("Export", f"Saved to:\n{path}")
 
     def _plot_pca(self):

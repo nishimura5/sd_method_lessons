@@ -34,5 +34,5 @@ The GUI mainly supports the following operations:
 - Specify the number of factors, or use the number suggested by the parallel analysis (PA) result
 - Choose Promax rotation, Varimax rotation, or no rotation
 - Display, plot, and export the factor loading matrix as CSV
-- Display and export factor scores by stimulus as CSV
-- Display a stimulus map with PCA
+- Display and export the mean and standard deviation (SD) of factor scores by stimulus as CSV
+- Display a stimulus map with PCA based on mean factor scores
