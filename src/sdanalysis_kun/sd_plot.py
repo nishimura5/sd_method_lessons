@@ -3,7 +3,9 @@ from .mpl_setup import configure_matplotlib_backend
 configure_matplotlib_backend()
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+from matplotlib.patches import Ellipse
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
@@ -47,7 +49,47 @@ def plot_factor_loadings(loading_df, title, inverted_rows=None, promax_corr_df=N
     plt.show()
 
 
-def plot_pca(stimulus_factor_df, factor_names, title):
+def _add_sd_ellipse(ax, points, color):
+    """Draw a one-standard-deviation covariance ellipse for a set of 2D points."""
+    if len(points) < 2:
+        return
+
+    covariance = np.cov(points, rowvar=False)
+    if covariance.shape != (2, 2) or not np.all(np.isfinite(covariance)):
+        return
+
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    order = eigenvalues.argsort()[::-1]
+    eigenvalues = np.clip(eigenvalues[order], 0, None)
+    eigenvectors = eigenvectors[:, order]
+    if eigenvalues[0] == 0:
+        return
+
+    angle = np.degrees(np.arctan2(eigenvectors[1, 0], eigenvectors[0, 0]))
+    center = points.mean(axis=0)
+    ellipse = Ellipse(
+        xy=center,
+        width=2 * np.sqrt(eigenvalues[0]),
+        height=2 * np.sqrt(eigenvalues[1]),
+        angle=angle,
+        facecolor=color,
+        edgecolor=color,
+        linewidth=1.2,
+        alpha=0.18,
+        zorder=1,
+    )
+    ax.add_patch(ellipse)
+
+
+def plot_pca(stimulus_factor_df, factor_names, title, stimulus_level=None):
+    """Plot factor scores in PCA space.
+
+    When ``stimulus_level`` is specified, PCA is fitted to every row but the
+    display is summarized by stimulus using a centroid and a within-stimulus
+    one-SD covariance ellipse.
+    This keeps respondent-level variation in the PCA while avoiding a crowded
+    respondent-by-stimulus plot.
+    """
     stimulus_factor_std = StandardScaler().fit_transform(stimulus_factor_df.values)
     pca = PCA(n_components=2, random_state=0)
     stimulus_pca_2d = pca.fit_transform(stimulus_factor_std)
@@ -61,10 +103,39 @@ def plot_pca(stimulus_factor_df, factor_names, title):
     fig, ax = plt.subplots()
     ax.axhline(0, color="gray", linewidth=0.8)
     ax.axvline(0, color="gray", linewidth=0.8)
-    ax.scatter(stimulus_pca_df["PC1"], stimulus_pca_df["PC2"], s=20)
+    if stimulus_level is None:
+        ax.scatter(stimulus_pca_df["PC1"], stimulus_pca_df["PC2"], s=20)
+        for stimulus_code, row in stimulus_pca_df.iterrows():
+            ax.text(row["PC1"] + 0.03, row["PC2"] + 0.03, stimulus_code, fontsize=10)
+    else:
+        stimulus_values = stimulus_pca_df.index.get_level_values(stimulus_level)
+        grouped_pca_df = stimulus_pca_df.assign(_stimulus=stimulus_values).groupby("_stimulus", sort=False)
+        groups = list(grouped_pca_df)
+        color_map = plt.get_cmap("tab20", max(len(groups), 1))
 
-    for stimulus_code, row in stimulus_pca_df.iterrows():
-        ax.text(row["PC1"] + 0.03, row["PC2"] + 0.03, stimulus_code, fontsize=10)
+        for group_index, (stimulus_code, group_df) in enumerate(groups):
+            color = color_map(group_index)
+            points = group_df[["PC1", "PC2"]].to_numpy()
+            center = points.mean(axis=0)
+            _add_sd_ellipse(ax, points, color)
+            ax.scatter(
+                center[0],
+                center[1],
+                s=65,
+                color=color,
+                edgecolor="white",
+                linewidth=0.8,
+                zorder=2,
+            )
+            ax.text(center[0] + 0.03, center[1] + 0.03, str(stimulus_code), fontsize=10, color=color)
+
+        fig.text(
+            0.01,
+            0.01,
+            "Point: stimulus centroid; ellipse: within-stimulus 1-SD covariance ellipse "
+            "(respondent variability; where available)",
+            fontsize=8,
+        )
 
     arrow_scale = 1.5
     for i, feature_name in enumerate(factor_names):
@@ -89,5 +160,5 @@ def plot_pca(stimulus_factor_df, factor_names, title):
     ax.set_ylabel(f"PC2 ({pc2_ratio:.1f}%)")
     ax.set_title(title)
     fig.canvas.manager.set_window_title("PCA Map")
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0.04, 1, 1] if stimulus_level is not None else None)
     plt.show()

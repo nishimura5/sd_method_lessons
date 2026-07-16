@@ -4,6 +4,7 @@ import pandas as pd
 matplotlib.use("Agg", force=True)
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 
 from sdanalysis_kun.sd_plot import plot_factor_loadings, plot_pca
 
@@ -24,7 +25,7 @@ def test_plot_factor_loadings_uses_larger_heatmap_value_labels(monkeypatch):
 
     for ax in plt.gcf().axes:
         assert len(ax.texts) == 4
-        assert all(text.get_fontsize() == 10 for text in ax.texts)
+        assert all(text.get_fontsize() == 12 for text in ax.texts)
 
     plt.close("all")
 
@@ -49,5 +50,34 @@ def test_plot_pca_uses_a_new_figure_instead_of_overwriting_current_figure(monkey
     assert len(existing_ax.collections) == 0
     assert plt.gcf() is not existing_fig
     assert plt.gca().get_title() == "PCA"
+
+    plt.close("all")
+
+
+def test_plot_pca_summarizes_respondent_points_by_stimulus(monkeypatch):
+    plt.close("all")
+    monkeypatch.setattr(plt, "show", lambda: None)
+    index = pd.MultiIndex.from_tuples(
+        [("R1", "A"), ("R2", "A"), ("R3", "A"), ("R1", "B"), ("R2", "B"), ("R3", "B")],
+        names=["respondent", "stimulus"],
+    )
+    scores = pd.DataFrame(
+        {
+            "Factor 1": [-1.0, -0.5, -0.8, 0.7, 1.2, 0.9],
+            "Factor 2": [0.0, 0.6, -0.4, -0.5, 0.3, 0.8],
+        },
+        index=index,
+    )
+
+    plot_pca(scores, list(scores.columns), title="PCA", stimulus_level="stimulus")
+
+    ax = plt.gca()
+    stimulus_labels = {text.get_text() for text in ax.texts} - set(scores.columns)
+    assert stimulus_labels == {"A", "B"}
+    assert sum(len(collection.get_offsets()) for collection in ax.collections) == 2
+    assert sum(isinstance(patch, Ellipse) for patch in ax.patches) == 2
+    caption = plt.gcf().texts[0].get_text()
+    assert "stimulus centroid" in caption
+    assert "within-stimulus 1-SD covariance ellipse" in caption
 
     plt.close("all")

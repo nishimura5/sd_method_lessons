@@ -650,7 +650,13 @@ class SDApp:
 
     def _plot_pca(self):
         if self.score_df is not None:
-            plot_pca(self.score_df, self.factor_names, title="Stimulus Map (2D PCA with Factor Axes)")
+            stimulus_level = self.stimulus_col_var.get() if self.resp_col_var.get() else None
+            plot_pca(
+                self.score_df,
+                self.factor_names,
+                title="Stimulus Map (2D PCA with Factor Axes)",
+                stimulus_level=stimulus_level,
+            )
 
 
 def main():
