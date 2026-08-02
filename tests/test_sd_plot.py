@@ -6,7 +6,7 @@ matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 
-from sdanalysis_kun.sd_plot import plot_factor_loadings, plot_pca
+from sdanalysis_kun.sd_plot import create_pca_figure, plot_factor_loadings, plot_pca
 
 
 def test_plot_factor_loadings_uses_larger_heatmap_value_labels(monkeypatch):
@@ -79,5 +79,24 @@ def test_plot_pca_summarizes_respondent_points_by_stimulus(monkeypatch):
     caption = plt.gcf().texts[0].get_text()
     assert "stimulus centroid" in caption
     assert "within-stimulus 1-SD covariance ellipse" in caption
+    assert sorted(stimulus_ids[0] for stimulus_ids in plt.gcf().pca_pick_targets.values()) == ["A", "B"]
 
     plt.close("all")
+
+
+def test_create_pca_figure_can_be_embedded_without_registering_a_pyplot_window():
+    plt.close("all")
+    scores = pd.DataFrame(
+        {
+            "Factor 1": [-1.0, 0.0, 1.0],
+            "Factor 2": [0.5, -1.0, 0.5],
+        },
+        index=["A", "B", "C"],
+    )
+
+    fig = create_pca_figure(scores, list(scores.columns), title="Embedded PCA")
+
+    assert plt.get_fignums() == []
+    assert fig.axes[0].get_title() == "Embedded PCA"
+    assert len(fig.axes[0].collections) == 1
+    assert list(fig.pca_pick_targets.values()) == [["A", "B", "C"]]

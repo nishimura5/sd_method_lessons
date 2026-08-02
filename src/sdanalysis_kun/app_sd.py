@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import pandas as pd
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from .sd_funcs import (
     compute_cronbach_alpha,
@@ -14,7 +15,8 @@ from .sd_funcs import (
     set_japanese_font,
     summarize_factor_scores,
 )
-from .sd_plot import plot_factor_loadings, plot_pca
+from .sd_plot import create_pca_figure, plot_factor_loadings
+from .stimulus_images import find_stimulus_png
 from .tooltip import ToolTip
 
 
@@ -35,6 +37,7 @@ class SDApp:
         self.filtered_df = None
         self.target_stimulus_table = {}  # 分析対象の刺激名のホワイトリスト、{"colname": [stimulus1, stimulus2, ...], ...} の形式
         self.invert_map = {}
+        self.png_folder_var = tk.StringVar(value="")
 
         set_japanese_font()
         self._build_ui()
@@ -107,23 +110,32 @@ class SDApp:
         frame_adj = ttk.LabelFrame(paned, text="Select Adjective Pair Columns", padding=10)
         paned.add(frame_adj, weight=4)
 
-        # スクロール可能なチェックボックス領域
-        canvas = tk.Canvas(frame_adj, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(frame_adj, orient=tk.VERTICAL, command=canvas.yview)
-        self.check_frame = ttk.Frame(canvas)
+        # 形容詞対が多い場合に備え、チェックボックス一覧を縦スクロール可能にする
+        self.adjective_canvas = tk.Canvas(frame_adj, highlightthickness=0)
+        # macOS の ttk.Scrollbar は Aqua の設定によって自動的に隠れるため、
+        # 常に表示されるクラシックウィジェットを使う。
+        adjective_scrollbar = tk.Scrollbar(
+            frame_adj,
+            orient=tk.VERTICAL,
+            command=self.adjective_canvas.yview,
+            width=16,
+        )
+        self.check_frame = ttk.Frame(self.adjective_canvas)
+        self._adjective_window = self.adjective_canvas.create_window(
+            (0, 0),
+            window=self.check_frame,
+            anchor="nw",
+        )
 
-        self.check_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=self.check_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        self.check_frame.bind("<Configure>", self._update_adjective_scrollregion)
+        self.adjective_canvas.bind("<Configure>", self._resize_adjective_check_frame)
+        self._bind_adjective_mousewheel(self.adjective_canvas)
+        self._bind_adjective_mousewheel(self.check_frame)
+        self.adjective_canvas.configure(yscrollcommand=adjective_scrollbar.set)
 
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # マウスホイールでスクロール
-        def _on_mousewheel(event):
-            canvas.yview_scroll(-1 * (event.delta // 120 or (1 if event.delta > 0 else -1)), "units")
-
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        # 先にスクロールバーの幅を確保し、残りを一覧領域に割り当てる。
+        adjective_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.adjective_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # --- 中央左: 併行分析表示 ---
         frame_parallel = ttk.LabelFrame(paned, text="Parallel Analysis", padding=10)
@@ -321,8 +333,41 @@ class SDApp:
             self.check_vars[col] = var
             cb = ttk.Checkbutton(self.check_frame, text=col, variable=var, command=self._update_stats_tree)
             cb.pack(anchor=tk.W, pady=1)
+            self._bind_adjective_mousewheel(cb)
 
+        self.adjective_canvas.yview_moveto(0)
         self._update_stats_tree()
+
+    def _update_adjective_scrollregion(self, _event=None):
+        """形容詞対一覧のサイズ変更を縦スクロール範囲に反映する。"""
+        bounds = self.adjective_canvas.bbox("all")
+        if bounds is not None:
+            self.adjective_canvas.configure(scrollregion=bounds)
+
+    def _resize_adjective_check_frame(self, event):
+        """キャンバス幅に合わせてチェックボックス領域を広げる。"""
+        self.adjective_canvas.itemconfigure(self._adjective_window, width=event.width)
+
+    def _bind_adjective_mousewheel(self, widget):
+        """形容詞対一覧上でのみマウスホイールを有効にする。"""
+        widget.bind("<MouseWheel>", self._scroll_adjective_pairs)
+        widget.bind("<Button-4>", self._scroll_adjective_pairs)
+        widget.bind("<Button-5>", self._scroll_adjective_pairs)
+
+    def _scroll_adjective_pairs(self, event):
+        """Windows・macOS・Linuxのホイール操作で形容詞対一覧を動かす。"""
+        if getattr(event, "num", None) == 4:
+            units = -1
+        elif getattr(event, "num", None) == 5:
+            units = 1
+        else:
+            delta = getattr(event, "delta", 0)
+            if delta == 0:
+                return None
+            units = -int(delta / 120) if abs(delta) >= 120 else (-1 if delta > 0 else 1)
+
+        self.adjective_canvas.yview_scroll(units, "units")
+        return "break"
 
     def _format_adj_name(self, col):
         """正規表現で形容詞対カラム名を 'ADJ1 - ADJ2' 形式に変換する。因子負荷が負の場合は反転。"""
@@ -651,12 +696,145 @@ class SDApp:
     def _plot_pca(self):
         if self.score_df is not None:
             stimulus_level = self.stimulus_col_var.get() if self.resp_col_var.get() else None
-            plot_pca(
+            dialog = tk.Toplevel(self.root)
+            dialog.title("PCA Map")
+            dialog.geometry("1200x700")
+            dialog.minsize(800, 500)
+            dialog.transient(self.root)
+
+            # PNG画像フォルダ選択
+            frame_folder = ttk.LabelFrame(dialog, text="PNG Image Folder", padding=10)
+            frame_folder.pack(fill=tk.X, padx=10, pady=(10, 5))
+            ttk.Entry(frame_folder, textvariable=self.png_folder_var, state="readonly").pack(
+                side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
+            )
+
+            def select_png_folder():
+                current_folder = self.png_folder_var.get()
+                initial_dir = (
+                    current_folder if current_folder and os.path.isdir(current_folder) else os.path.expanduser("~")
+                )
+                folder = filedialog.askdirectory(
+                    parent=dialog,
+                    title="Select Folder Containing PNG Images",
+                    initialdir=initial_dir,
+                    mustexist=True,
+                )
+                if folder:
+                    self.png_folder_var.set(folder)
+
+            ttk.Button(frame_folder, text="Select Folder...", command=select_png_folder).pack(side=tk.LEFT)
+
+            # 左にPCA、右に将来の画像プレビューを表示する領域を配置
+            paned = ttk.PanedWindow(dialog, orient=tk.HORIZONTAL)
+            paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
+
+            frame_pca = ttk.LabelFrame(paned, text="PCA Map", padding=5)
+            frame_preview = ttk.LabelFrame(paned, text="PNG Preview", padding=5)
+            paned.add(frame_pca, weight=3)
+            paned.add(frame_preview, weight=2)
+
+            fig = create_pca_figure(
                 self.score_df,
                 self.factor_names,
                 title="Stimulus Map (2D PCA with Factor Axes)",
                 stimulus_level=stimulus_level,
             )
+            pca_canvas = FigureCanvasTkAgg(fig, master=frame_pca)
+            pca_canvas.draw()
+            pca_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            preview_canvas = tk.Canvas(frame_preview, background="white", highlightthickness=0)
+            preview_canvas.pack(fill=tk.BOTH, expand=True)
+            preview_canvas.create_text(
+                20,
+                20,
+                text="Select a PNG folder, then click a stimulus point.",
+                anchor=tk.NW,
+                fill="gray50",
+            )
+
+            def show_preview_message(message):
+                preview_canvas.delete("all")
+                preview_canvas.update_idletasks()
+                width = max(preview_canvas.winfo_width(), 200)
+                height = max(preview_canvas.winfo_height(), 150)
+                preview_canvas.create_text(
+                    width / 2,
+                    height / 2,
+                    text=message,
+                    anchor=tk.CENTER,
+                    justify=tk.CENTER,
+                    width=max(width - 40, 160),
+                    fill="gray40",
+                )
+                preview_canvas.preview_photo = None
+
+            def show_png(path, stimulus_id):
+                try:
+                    photo = tk.PhotoImage(master=dialog, file=str(path))
+                except tk.TclError as error:
+                    show_preview_message(f"Could not load {path.name}:\n{error}")
+                    return
+
+                preview_canvas.update_idletasks()
+                canvas_width = max(preview_canvas.winfo_width(), 200)
+                canvas_height = max(preview_canvas.winfo_height(), 150)
+                available_width = max(canvas_width - 20, 1)
+                available_height = max(canvas_height - 50, 1)
+                sample = max(
+                    1,
+                    (photo.width() + available_width - 1) // available_width,
+                    (photo.height() + available_height - 1) // available_height,
+                )
+                if sample > 1:
+                    photo = photo.subsample(sample, sample)
+
+                preview_canvas.delete("all")
+                preview_canvas.create_text(
+                    canvas_width / 2,
+                    10,
+                    text=f"Stimulus: {stimulus_id}   File: {path.name}",
+                    anchor=tk.N,
+                )
+                preview_canvas.create_image(
+                    canvas_width / 2,
+                    (canvas_height + 30) / 2,
+                    image=photo,
+                    anchor=tk.CENTER,
+                )
+                preview_canvas.preview_photo = photo
+
+            def on_pick(event):
+                stimulus_ids = fig.pca_pick_targets.get(event.artist)
+                if not stimulus_ids or event.ind is None or len(event.ind) == 0:
+                    return
+                point_index = int(event.ind[0])
+                if point_index >= len(stimulus_ids):
+                    return
+
+                stimulus_id = stimulus_ids[point_index]
+                folder = self.png_folder_var.get()
+                if not folder:
+                    show_preview_message("Select a PNG image folder first.")
+                    return
+
+                png_path = find_stimulus_png(folder, stimulus_id)
+                if png_path is None:
+                    show_preview_message(
+                        f"PNG not found for stimulus: {stimulus_id}\n\n"
+                        "The filename stem must match the stimulus ID.\n"
+                        "Zero-padded integer names such as 001.png are supported."
+                    )
+                    return
+                show_png(png_path, stimulus_id)
+
+            pick_connection_id = pca_canvas.mpl_connect("pick_event", on_pick)
+
+            # Tk側で参照を保持し、ダイアログ表示中にCanvasが破棄されないようにする
+            dialog.pca_canvas = pca_canvas
+            dialog.preview_canvas = preview_canvas
+            dialog.pick_connection_id = pick_connection_id
 
 
 def main():

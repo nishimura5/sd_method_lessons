@@ -5,6 +5,7 @@ configure_matplotlib_backend()
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.figure import Figure
 from matplotlib.patches import Ellipse
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -81,15 +82,8 @@ def _add_sd_ellipse(ax, points, color):
     ax.add_patch(ellipse)
 
 
-def plot_pca(stimulus_factor_df, factor_names, title, stimulus_level=None):
-    """Plot factor scores in PCA space.
-
-    When ``stimulus_level`` is specified, PCA is fitted to every row but the
-    display is summarized by stimulus using a centroid and a within-stimulus
-    one-SD covariance ellipse.
-    This keeps respondent-level variation in the PCA while avoiding a crowded
-    respondent-by-stimulus plot.
-    """
+def _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level=None):
+    """Draw factor scores in PCA space on an existing Matplotlib figure."""
     stimulus_factor_std = StandardScaler().fit_transform(stimulus_factor_df.values)
     pca = PCA(n_components=2, random_state=0)
     stimulus_pca_2d = pca.fit_transform(stimulus_factor_std)
@@ -100,11 +94,12 @@ def plot_pca(stimulus_factor_df, factor_names, title, stimulus_level=None):
         index=stimulus_factor_df.index,
         columns=["PC1", "PC2"],
     )
-    fig, ax = plt.subplots()
+    pick_targets = {}
     ax.axhline(0, color="gray", linewidth=0.8)
     ax.axvline(0, color="gray", linewidth=0.8)
     if stimulus_level is None:
-        ax.scatter(stimulus_pca_df["PC1"], stimulus_pca_df["PC2"], s=20)
+        points = ax.scatter(stimulus_pca_df["PC1"], stimulus_pca_df["PC2"], s=20, picker=5)
+        pick_targets[points] = list(stimulus_pca_df.index)
         for stimulus_code, row in stimulus_pca_df.iterrows():
             ax.text(row["PC1"] + 0.03, row["PC2"] + 0.03, stimulus_code, fontsize=10)
     else:
@@ -118,7 +113,7 @@ def plot_pca(stimulus_factor_df, factor_names, title, stimulus_level=None):
             points = group_df[["PC1", "PC2"]].to_numpy()
             center = points.mean(axis=0)
             _add_sd_ellipse(ax, points, color)
-            ax.scatter(
+            point = ax.scatter(
                 center[0],
                 center[1],
                 s=65,
@@ -126,7 +121,9 @@ def plot_pca(stimulus_factor_df, factor_names, title, stimulus_level=None):
                 edgecolor="white",
                 linewidth=0.8,
                 zorder=2,
+                picker=5,
             )
+            pick_targets[point] = [stimulus_code]
             ax.text(center[0] + 0.03, center[1] + 0.03, str(stimulus_code), fontsize=10, color=color)
 
         fig.text(
@@ -159,6 +156,29 @@ def plot_pca(stimulus_factor_df, factor_names, title, stimulus_level=None):
     ax.set_xlabel(f"PC1 ({pc1_ratio:.1f}%)")
     ax.set_ylabel(f"PC2 ({pc2_ratio:.1f}%)")
     ax.set_title(title)
-    fig.canvas.manager.set_window_title("PCA Map")
     fig.tight_layout(rect=[0, 0.04, 1, 1] if stimulus_level is not None else None)
+    return pick_targets
+
+
+def create_pca_figure(stimulus_factor_df, factor_names, title, stimulus_level=None):
+    """Create a PCA figure that can be embedded in a GUI canvas."""
+    fig = Figure(figsize=(7, 6), dpi=100)
+    ax = fig.add_subplot(111)
+    fig.pca_pick_targets = _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level)
+    return fig
+
+
+def plot_pca(stimulus_factor_df, factor_names, title, stimulus_level=None):
+    """Plot factor scores in PCA space in a standalone Matplotlib window.
+
+    When ``stimulus_level`` is specified, PCA is fitted to every row but the
+    display is summarized by stimulus using a centroid and a within-stimulus
+    one-SD covariance ellipse.
+    This keeps respondent-level variation in the PCA while avoiding a crowded
+    respondent-by-stimulus plot.
+    """
+    fig, ax = plt.subplots()
+    fig.pca_pick_targets = _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level)
+    fig.canvas.manager.set_window_title("PCA Map")
     plt.show()
+    return fig
