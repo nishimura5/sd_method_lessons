@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from sdanalysis_kun.app_sd import SDApp
+from sdanalysis_kun.app_sd import SDApp, _read_sd_csv
 
 
 class ScrollCanvasStub:
@@ -30,6 +30,17 @@ class BindWidgetStub:
 
     def bind(self, event_name, callback):
         self.bindings[event_name] = callback
+
+
+def test_read_sd_csv_preserves_stimulus_id_as_text(tmp_path):
+    csv_path = tmp_path / "stimuli.csv"
+    csv_path.write_text("stimulus_id,score\n001,5\n010,6\n,7\n", encoding="utf-8")
+
+    df = _read_sd_csv(csv_path, encoding="utf-8")
+
+    assert df["stimulus_id"].tolist() == ["001", "010", ""]
+    assert all(isinstance(value, str) for value in df["stimulus_id"])
+    assert df["score"].tolist() == [5, 6, 7]
 
 
 @pytest.mark.parametrize(

@@ -20,6 +20,11 @@ from .stimulus_images import find_stimulus_png
 from .tooltip import ToolTip
 
 
+def _read_sd_csv(path, encoding):
+    """CSVを読み込み、stimulus_idの表記と文字列型をそのまま保持する。"""
+    return pd.read_csv(path, encoding=encoding, converters={"stimulus_id": str})
+
+
 class SDApp:
     def __init__(self, root):
         self.root = root
@@ -290,10 +295,10 @@ class SDApp:
             return
 
         try:
-            self.df = pd.read_csv(path, encoding="utf-8")
+            self.df = _read_sd_csv(path, encoding="utf-8")
         except UnicodeDecodeError:
             try:
-                self.df = pd.read_csv(path, encoding="cp932")
+                self.df = _read_sd_csv(path, encoding="cp932")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to read CSV file:\n{e}")
                 return
