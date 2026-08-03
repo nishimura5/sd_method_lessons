@@ -385,6 +385,116 @@ class SDApp:
             pass
         return col
 
+    def _add_png_folder_control(self, parent, dialog):
+        """セッション中共有するPNGフォルダ選択コントロールを追加する。"""
+        frame_folder = ttk.LabelFrame(parent, text="Thumbnail PNG Folder", padding=10)
+        frame_folder.pack(fill=tk.X, padx=10, pady=(10, 5))
+        ttk.Entry(frame_folder, textvariable=self.png_folder_var, state="readonly").pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
+        )
+        ttk.Button(
+            frame_folder,
+            text="Select Folder...",
+            command=lambda: self._select_png_folder(dialog),
+        ).pack(side=tk.LEFT)
+
+    def _select_png_folder(self, dialog):
+        """PNGフォルダを選択し、アプリのセッション状態として保持する。"""
+        current_folder = self.png_folder_var.get()
+        initial_dir = current_folder if current_folder and os.path.isdir(current_folder) else os.path.expanduser("~")
+        folder = filedialog.askdirectory(
+            parent=dialog,
+            title="Select Folder Containing PNG Images",
+            initialdir=initial_dir,
+            mustexist=True,
+        )
+        if folder:
+            self.png_folder_var.set(folder)
+
+    def _create_png_preview_canvas(self, parent, initial_message):
+        """PCA・刺激フィルターで共用するPNGプレビュー領域を作成する。"""
+        preview_canvas = tk.Canvas(parent, background="white", highlightthickness=0)
+        preview_canvas.pack(fill=tk.BOTH, expand=True)
+        self._show_png_preview_message(preview_canvas, initial_message)
+        return preview_canvas
+
+    def _show_png_preview_message(self, preview_canvas, message):
+        preview_canvas.delete("all")
+        preview_canvas.update_idletasks()
+        width = max(preview_canvas.winfo_width(), 200)
+        height = max(preview_canvas.winfo_height(), 150)
+        preview_canvas.create_text(
+            width / 2,
+            height / 2,
+            text=message,
+            anchor=tk.CENTER,
+            justify=tk.CENTER,
+            width=max(width - 40, 160),
+            fill="gray40",
+        )
+        preview_canvas.preview_photo = None
+
+    def _show_png_preview(self, preview_canvas, dialog, path, stimulus_id):
+        try:
+            photo = tk.PhotoImage(master=dialog, file=str(path))
+        except tk.TclError as error:
+            self._show_png_preview_message(preview_canvas, f"Could not load {path.name}:\n{error}")
+            return
+
+        preview_canvas.update_idletasks()
+        canvas_width = max(preview_canvas.winfo_width(), 200)
+        canvas_height = max(preview_canvas.winfo_height(), 150)
+        available_width = max(canvas_width - 20, 1)
+        available_height = max(canvas_height - 50, 1)
+        sample = max(
+            1,
+            (photo.width() + available_width - 1) // available_width,
+            (photo.height() + available_height - 1) // available_height,
+        )
+        if sample > 1:
+            photo = photo.subsample(sample, sample)
+
+        preview_canvas.delete("all")
+        preview_canvas.create_text(
+            canvas_width / 2,
+            10,
+            text=f"Stimulus: {stimulus_id}   File: {path.name}",
+            anchor=tk.N,
+        )
+        preview_canvas.create_image(
+            canvas_width / 2,
+            (canvas_height + 30) / 2,
+            image=photo,
+            anchor=tk.CENTER,
+        )
+        # Tk側で参照を保持し、画像がガベージコレクションされないようにする。
+        preview_canvas.preview_photo = photo
+
+    def _show_stimulus_png(self, preview_canvas, dialog, stimulus_id):
+        """選択中の共有フォルダから刺激IDに対応するPNGを表示する。"""
+        folder = self.png_folder_var.get()
+        if not folder:
+            self._show_png_preview_message(preview_canvas, "Select a thumbnail PNG folder first.")
+            return
+
+        png_path = find_stimulus_png(folder, stimulus_id)
+        if png_path is None:
+            self._show_png_preview_message(
+                preview_canvas,
+                f"PNG not found for stimulus: {stimulus_id}\n\n"
+                "The filename stem must match the stimulus ID.\n"
+                "Zero-padded integer names such as 001.png are supported.",
+            )
+            return
+        self._show_png_preview(preview_canvas, dialog, png_path, stimulus_id)
+
+    def _bind_stimulus_png_hover(self, widget, preview_canvas, dialog, stimulus_id):
+        """刺激ラベルへのホバーで対応するPNGを表示する。"""
+        widget.bind(
+            "<Enter>",
+            lambda _event: self._show_stimulus_png(preview_canvas, dialog, stimulus_id),
+        )
+
     def _open_stimulus_filter_dialog(self):
         """分析対象の刺激を選択するダイアログ"""
         if self.df is None:
@@ -403,16 +513,55 @@ class SDApp:
         dialog.grab_set()
         x = self.root.winfo_x()
         y = self.root.winfo_y()
-        dialog.geometry(f"+{x}+{y}")
-        frame = ttk.Frame(dialog, padding=10)
-        frame.pack(fill=tk.BOTH, expand=True)
+        dialog.geometry(f"900x600+{x}+{y}")
+        dialog.minsize(650, 400)
+
+        self._add_png_folder_control(dialog, dialog)
+
+        paned = ttk.PanedWindow(dialog, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        frame_stimuli = ttk.LabelFrame(paned, text="Stimuli", padding=5)
+        frame_preview = ttk.LabelFrame(paned, text="PNG Preview", padding=5)
+        paned.add(frame_stimuli, weight=2)
+        paned.add(frame_preview, weight=3)
+
+        stimulus_canvas = tk.Canvas(frame_stimuli, highlightthickness=0)
+        stimulus_scrollbar = tk.Scrollbar(
+            frame_stimuli,
+            orient=tk.VERTICAL,
+            command=stimulus_canvas.yview,
+            width=16,
+        )
+        stimulus_list = ttk.Frame(stimulus_canvas)
+        stimulus_window = stimulus_canvas.create_window((0, 0), window=stimulus_list, anchor="nw")
+        stimulus_list.bind(
+            "<Configure>",
+            lambda _event: stimulus_canvas.configure(scrollregion=stimulus_canvas.bbox("all")),
+        )
+        stimulus_canvas.bind(
+            "<Configure>",
+            lambda event: stimulus_canvas.itemconfigure(stimulus_window, width=event.width),
+        )
+        stimulus_canvas.configure(yscrollcommand=stimulus_scrollbar.set)
+        stimulus_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        stimulus_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        initial_message = (
+            "Hover over a stimulus label to display its PNG."
+            if self.png_folder_var.get()
+            else "Select a thumbnail PNG folder, then hover over a stimulus label."
+        )
+        preview_canvas = self._create_png_preview_canvas(frame_preview, initial_message)
+
         # 刺激のチェックボックスを配置
         check_vars = {}
         for stimulus in all_stimuli:
             var = tk.BooleanVar(value=stimulus in target_stimuli)
             check_vars[stimulus] = var
-            cb = ttk.Checkbutton(frame, text=stimulus, variable=var)
+            cb = ttk.Checkbutton(stimulus_list, text=stimulus, variable=var)
             cb.pack(anchor=tk.W, pady=1, padx=10)
+            self._bind_stimulus_png_hover(cb, preview_canvas, dialog, stimulus)
 
         # OKボタン
         def on_ok():
@@ -420,7 +569,11 @@ class SDApp:
             self.target_stimulus_table[stimulus_col] = stimuli
             dialog.destroy()
 
-        ttk.Button(frame, text="OK", command=on_ok).pack(pady=10)
+        ttk.Button(dialog, text="OK", command=on_ok).pack(pady=(5, 10))
+
+        # Tk側で参照を保持し、ダイアログ表示中にCanvasが破棄されないようにする。
+        dialog.stimulus_canvas = stimulus_canvas
+        dialog.preview_canvas = preview_canvas
 
     def _apply_regex(self):
         """正規表現を適用してTreeviewの表示名を更新する。"""
@@ -703,29 +856,9 @@ class SDApp:
             dialog.transient(self.root)
 
             # PNG画像フォルダ選択
-            frame_folder = ttk.LabelFrame(dialog, text="PNG Image Folder", padding=10)
-            frame_folder.pack(fill=tk.X, padx=10, pady=(10, 5))
-            ttk.Entry(frame_folder, textvariable=self.png_folder_var, state="readonly").pack(
-                side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
-            )
+            self._add_png_folder_control(dialog, dialog)
 
-            def select_png_folder():
-                current_folder = self.png_folder_var.get()
-                initial_dir = (
-                    current_folder if current_folder and os.path.isdir(current_folder) else os.path.expanduser("~")
-                )
-                folder = filedialog.askdirectory(
-                    parent=dialog,
-                    title="Select Folder Containing PNG Images",
-                    initialdir=initial_dir,
-                    mustexist=True,
-                )
-                if folder:
-                    self.png_folder_var.set(folder)
-
-            ttk.Button(frame_folder, text="Select Folder...", command=select_png_folder).pack(side=tk.LEFT)
-
-            # 左にPCA、右に将来の画像プレビューを表示する領域を配置
+            # 左にPCA、右に画像プレビューを表示する領域を配置
             paned = ttk.PanedWindow(dialog, orient=tk.HORIZONTAL)
             paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
 
@@ -744,66 +877,12 @@ class SDApp:
             pca_canvas.draw()
             pca_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-            preview_canvas = tk.Canvas(frame_preview, background="white", highlightthickness=0)
-            preview_canvas.pack(fill=tk.BOTH, expand=True)
-            preview_canvas.create_text(
-                20,
-                20,
-                text="Select a PNG folder, then click a stimulus point.",
-                anchor=tk.NW,
-                fill="gray50",
+            initial_message = (
+                "Click a stimulus point to display its PNG."
+                if self.png_folder_var.get()
+                else "Select a thumbnail PNG folder, then click a stimulus point."
             )
-
-            def show_preview_message(message):
-                preview_canvas.delete("all")
-                preview_canvas.update_idletasks()
-                width = max(preview_canvas.winfo_width(), 200)
-                height = max(preview_canvas.winfo_height(), 150)
-                preview_canvas.create_text(
-                    width / 2,
-                    height / 2,
-                    text=message,
-                    anchor=tk.CENTER,
-                    justify=tk.CENTER,
-                    width=max(width - 40, 160),
-                    fill="gray40",
-                )
-                preview_canvas.preview_photo = None
-
-            def show_png(path, stimulus_id):
-                try:
-                    photo = tk.PhotoImage(master=dialog, file=str(path))
-                except tk.TclError as error:
-                    show_preview_message(f"Could not load {path.name}:\n{error}")
-                    return
-
-                preview_canvas.update_idletasks()
-                canvas_width = max(preview_canvas.winfo_width(), 200)
-                canvas_height = max(preview_canvas.winfo_height(), 150)
-                available_width = max(canvas_width - 20, 1)
-                available_height = max(canvas_height - 50, 1)
-                sample = max(
-                    1,
-                    (photo.width() + available_width - 1) // available_width,
-                    (photo.height() + available_height - 1) // available_height,
-                )
-                if sample > 1:
-                    photo = photo.subsample(sample, sample)
-
-                preview_canvas.delete("all")
-                preview_canvas.create_text(
-                    canvas_width / 2,
-                    10,
-                    text=f"Stimulus: {stimulus_id}   File: {path.name}",
-                    anchor=tk.N,
-                )
-                preview_canvas.create_image(
-                    canvas_width / 2,
-                    (canvas_height + 30) / 2,
-                    image=photo,
-                    anchor=tk.CENTER,
-                )
-                preview_canvas.preview_photo = photo
+            preview_canvas = self._create_png_preview_canvas(frame_preview, initial_message)
 
             def on_pick(event):
                 stimulus_ids = fig.pca_pick_targets.get(event.artist)
@@ -814,20 +893,7 @@ class SDApp:
                     return
 
                 stimulus_id = stimulus_ids[point_index]
-                folder = self.png_folder_var.get()
-                if not folder:
-                    show_preview_message("Select a PNG image folder first.")
-                    return
-
-                png_path = find_stimulus_png(folder, stimulus_id)
-                if png_path is None:
-                    show_preview_message(
-                        f"PNG not found for stimulus: {stimulus_id}\n\n"
-                        "The filename stem must match the stimulus ID.\n"
-                        "Zero-padded integer names such as 001.png are supported."
-                    )
-                    return
-                show_png(png_path, stimulus_id)
+                self._show_stimulus_png(preview_canvas, dialog, stimulus_id)
 
             pick_connection_id = pca_canvas.mpl_connect("pick_event", on_pick)
 
