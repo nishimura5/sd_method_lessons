@@ -487,8 +487,7 @@ class SDApp:
             self._show_png_preview_message(
                 preview_canvas,
                 f"PNG not found for stimulus: {stimulus_id}\n\n"
-                "The filename stem must match the stimulus ID.\n"
-                "Zero-padded integer names such as 001.png are supported.",
+                "The filename must be <stimulus_id>.png, including any leading zeros.",
             )
             return
         self._show_png_preview(preview_canvas, dialog, png_path, stimulus_id)

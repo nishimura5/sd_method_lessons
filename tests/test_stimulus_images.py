@@ -1,7 +1,7 @@
 from sdanalysis_kun.stimulus_images import find_stimulus_png
 
 
-def test_find_stimulus_png_uses_exact_text_match_first(tmp_path):
+def test_find_stimulus_png_uses_exact_text_match(tmp_path):
     exact = tmp_path / "1.png"
     padded = tmp_path / "001.png"
     exact.touch()
@@ -11,12 +11,12 @@ def test_find_stimulus_png_uses_exact_text_match_first(tmp_path):
     assert find_stimulus_png(tmp_path, "001") == padded
 
 
-def test_find_stimulus_png_matches_zero_padded_integer_after_csv_conversion(tmp_path):
-    padded = tmp_path / "001.png"
+def test_find_stimulus_png_does_not_infer_zero_padding(tmp_path):
+    padded = tmp_path / "0001.png"
     padded.touch()
 
-    assert find_stimulus_png(tmp_path, 1) == padded
-    assert find_stimulus_png(tmp_path, 1.0) == padded
+    assert find_stimulus_png(tmp_path, 1) is None
+    assert find_stimulus_png(tmp_path, "0001") == padded
 
 
 def test_find_stimulus_png_does_not_apply_numeric_matching_to_alphanumeric_ids(tmp_path):
