@@ -1,14 +1,13 @@
 import matplotlib
 import numpy as np
 import pandas as pd
-import pytest
 
 matplotlib.use("Agg", force=True)
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 
-from sdanalysis_kun.sd_plot import create_factor_map_figure, create_pca_figure, plot_factor_loadings, plot_pca
+from sdanalysis_kun.sd_plot import create_factor_map_figure, create_pca_map_figure, plot_factor_loadings
 
 
 def test_plot_factor_loadings_uses_larger_heatmap_value_labels(monkeypatch):
@@ -32,33 +31,8 @@ def test_plot_factor_loadings_uses_larger_heatmap_value_labels(monkeypatch):
     plt.close("all")
 
 
-def test_plot_pca_uses_a_new_figure_instead_of_overwriting_current_figure(monkeypatch):
+def test_create_pca_map_figure_summarizes_respondent_points_by_stimulus():
     plt.close("all")
-    existing_fig, existing_ax = plt.subplots()
-    existing_ax.set_title("Factor Loading Matrix")
-    monkeypatch.setattr(plt, "show", lambda: None)
-    scores = pd.DataFrame(
-        {
-            "Factor 1": [-1.0, 0.0, 1.0],
-            "Factor 2": [0.5, -1.0, 0.5],
-        },
-        index=["A", "B", "C"],
-    )
-
-    plot_pca(scores, list(scores.columns), title="PCA")
-
-    assert len(plt.get_fignums()) == 2
-    assert existing_ax.get_title() == "Factor Loading Matrix"
-    assert len(existing_ax.collections) == 0
-    assert plt.gcf() is not existing_fig
-    assert plt.gca().get_title() == "PCA"
-
-    plt.close("all")
-
-
-def test_plot_pca_summarizes_respondent_points_by_stimulus(monkeypatch):
-    plt.close("all")
-    monkeypatch.setattr(plt, "show", lambda: None)
     index = pd.MultiIndex.from_tuples(
         [("R1", "A"), ("R2", "A"), ("R3", "A"), ("R1", "B"), ("R2", "B"), ("R3", "B")],
         names=["respondent", "stimulus"],
@@ -71,22 +45,22 @@ def test_plot_pca_summarizes_respondent_points_by_stimulus(monkeypatch):
         index=index,
     )
 
-    plot_pca(scores, list(scores.columns), title="PCA", stimulus_level="stimulus")
+    fig = create_pca_map_figure(scores, list(scores.columns), title="PCA", stimulus_level="stimulus")
 
-    ax = plt.gca()
+    ax = fig.axes[0]
     stimulus_labels = {text.get_text() for text in ax.texts} - set(scores.columns)
     assert stimulus_labels == {"A", "B"}
     assert sum(len(collection.get_offsets()) for collection in ax.collections) == 2
     assert sum(isinstance(patch, Ellipse) for patch in ax.patches) == 2
-    caption = plt.gcf().texts[0].get_text()
+    caption = fig.texts[0].get_text()
     assert "stimulus centroid" in caption
     assert "within-stimulus 1-SD covariance ellipse" in caption
-    assert sorted(stimulus_ids[0] for stimulus_ids in plt.gcf().pca_pick_targets.values()) == ["A", "B"]
+    assert sorted(stimulus_ids[0] for stimulus_ids in fig.stimulus_pick_targets.values()) == ["A", "B"]
 
     plt.close("all")
 
 
-def test_create_pca_figure_can_be_embedded_without_registering_a_pyplot_window():
+def test_create_pca_map_figure_does_not_register_a_pyplot_window():
     plt.close("all")
     scores = pd.DataFrame(
         {
@@ -96,12 +70,12 @@ def test_create_pca_figure_can_be_embedded_without_registering_a_pyplot_window()
         index=["A", "B", "C"],
     )
 
-    fig = create_pca_figure(scores, list(scores.columns), title="Embedded PCA")
+    fig = create_pca_map_figure(scores, list(scores.columns), title="Embedded PCA")
 
     assert plt.get_fignums() == []
     assert fig.axes[0].get_title() == "Embedded PCA"
     assert len(fig.axes[0].collections) == 1
-    assert list(fig.pca_pick_targets.values()) == [["A", "B", "C"]]
+    assert list(fig.stimulus_pick_targets.values()) == [["A", "B", "C"]]
 
 
 def test_create_factor_map_figure_uses_selected_factor_scores_without_pca():
@@ -152,10 +126,3 @@ def test_create_factor_map_figure_summarizes_respondents_with_shared_map_drawing
     assert sum(len(collection.get_offsets()) for collection in ax.collections) == 2
     assert sum(isinstance(patch, Ellipse) for patch in ax.patches) == 2
     assert sorted(stimulus_ids[0] for stimulus_ids in fig.stimulus_pick_targets.values()) == ["A", "B"]
-
-
-def test_create_factor_map_figure_requires_two_different_factors():
-    scores = pd.DataFrame({"Factor1": [-1.0, 1.0]}, index=["A", "B"])
-
-    with pytest.raises(ValueError, match="different factors"):
-        create_factor_map_figure(scores, "Factor1", "Factor1", title="Invalid")

@@ -15,7 +15,7 @@ from .sd_funcs import (
     set_japanese_font,
     summarize_factor_scores,
 )
-from .sd_plot import create_factor_map_figure, create_pca_figure, plot_factor_loadings
+from .sd_plot import create_factor_map_figure, create_pca_map_figure, plot_factor_loadings
 from .stimulus_images import find_stimulus_png, find_thumbnail_png_folder
 from .tooltip import ToolTip
 
@@ -274,13 +274,13 @@ class SDApp:
         frame_plot = ttk.Frame(frame_bottom_right)
         frame_plot.pack(fill=tk.X, pady=(0, 5))
 
-        self.btn_plot_pca = ttk.Button(
+        self.btn_plot_map = ttk.Button(
             frame_plot,
             text="Plot Stimulus Map",
             command=self._plot_stimulus_map,
             state=tk.DISABLED,
         )
-        self.btn_plot_pca.pack(side=tk.LEFT)
+        self.btn_plot_map.pack(side=tk.LEFT)
 
         self.btn_export_csv = ttk.Button(frame_plot, text="Export Summary", command=self._export_csv, state=tk.DISABLED)
         self.btn_export_csv.pack(side=tk.LEFT, padx=(15, 0))
@@ -768,7 +768,7 @@ class SDApp:
             self.btn_apply_reg.config(state=tk.NORMAL)
             self.btn_plot_loadings.config(state=tk.NORMAL)
             self.btn_export_loadings.config(state=tk.NORMAL)
-            self.btn_plot_pca.config(state=tk.NORMAL if len(factor_names) >= 2 else tk.DISABLED)
+            self.btn_plot_map.config(state=tk.NORMAL if len(factor_names) >= 2 else tk.DISABLED)
             self.btn_export_csv.config(state=tk.NORMAL)
 
             self._update_stats_tree()
@@ -869,12 +869,6 @@ class SDApp:
         messagebox.showinfo("Export", f"Saved to:\n{path}")
 
     def _plot_stimulus_map(self):
-        if self.score_df is None or not self.factor_names:
-            return
-        if len(self.factor_names) < 2:
-            messagebox.showwarning("Stimulus Map", "At least two factors are required to draw a stimulus map.")
-            return
-
         stimulus_level = self.stimulus_col_var.get() if self.resp_col_var.get() else None
         dialog = tk.Toplevel(self.root)
         dialog.title("Stimulus Map")
@@ -907,7 +901,6 @@ class SDApp:
             else "Select a thumbnail PNG folder, then click a stimulus point."
         )
         preview_canvas = self._create_png_preview_canvas(frame_preview, initial_message)
-        active_plot = {"canvas": None, "pick_connection_id": None}
 
         def render_map():
             if plot_mode_var.get() == "factors":
@@ -929,7 +922,7 @@ class SDApp:
                 )
                 frame_map.configure(text="Factor Axes Map")
             else:
-                fig = create_pca_figure(
+                fig = create_pca_map_figure(
                     self.score_df,
                     self.factor_names,
                     title="Stimulus Map (2D PCA with Factor Axes)",
@@ -937,10 +930,6 @@ class SDApp:
                 )
                 frame_map.configure(text="PCA Map")
 
-            old_canvas = active_plot["canvas"]
-            old_connection_id = active_plot["pick_connection_id"]
-            if old_canvas is not None and old_connection_id is not None:
-                old_canvas.mpl_disconnect(old_connection_id)
             for child in frame_map.winfo_children():
                 child.destroy()
 
@@ -950,18 +939,12 @@ class SDApp:
 
             def on_pick(event):
                 stimulus_ids = fig.stimulus_pick_targets.get(event.artist)
-                if not stimulus_ids or event.ind is None or len(event.ind) == 0:
+                if not stimulus_ids:
                     return
-                point_index = int(event.ind[0])
-                if point_index >= len(stimulus_ids):
-                    return
-
-                stimulus_id = stimulus_ids[point_index]
+                stimulus_id = stimulus_ids[int(event.ind[0])]
                 self._show_stimulus_png(preview_canvas, dialog, stimulus_id)
 
             pick_connection_id = map_canvas.mpl_connect("pick_event", on_pick)
-            active_plot["canvas"] = map_canvas
-            active_plot["pick_connection_id"] = pick_connection_id
 
             # Tk側で参照を保持し、ダイアログ表示中にCanvasが破棄されないようにする
             dialog.map_figure = fig
@@ -1015,10 +998,6 @@ class SDApp:
         dialog.y_factor_var = y_factor_var
         dialog.preview_canvas = preview_canvas
         render_map()
-
-    def _plot_pca(self):
-        """Backward-compatible entry point for the shared stimulus-map dialog."""
-        self._plot_stimulus_map()
 
 
 def main():

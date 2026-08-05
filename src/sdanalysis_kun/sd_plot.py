@@ -56,15 +56,10 @@ def _add_sd_ellipse(ax, points, color):
         return
 
     covariance = np.cov(points, rowvar=False)
-    if covariance.shape != (2, 2) or not np.all(np.isfinite(covariance)):
-        return
-
     eigenvalues, eigenvectors = np.linalg.eigh(covariance)
     order = eigenvalues.argsort()[::-1]
     eigenvalues = np.clip(eigenvalues[order], 0, None)
     eigenvectors = eigenvectors[:, order]
-    if eigenvalues[0] == 0:
-        return
 
     angle = np.degrees(np.arctan2(eigenvectors[1, 0], eigenvectors[0, 0]))
     center = points.mean(axis=0)
@@ -177,36 +172,11 @@ def _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level=N
     return pick_targets
 
 
-def _draw_factor_map(fig, ax, stimulus_factor_df, x_factor, y_factor, title, stimulus_level=None):
-    """Draw two selected factor-score columns without applying PCA."""
-    if x_factor == y_factor:
-        raise ValueError("X and Y axes must use different factors.")
-
-    missing_factors = [factor for factor in (x_factor, y_factor) if factor not in stimulus_factor_df.columns]
-    if missing_factors:
-        raise ValueError(f"Unknown factor column(s): {', '.join(missing_factors)}")
-
-    coordinate_df = stimulus_factor_df[[x_factor, y_factor]]
-    pick_targets = _draw_stimulus_coordinates(
-        fig,
-        ax,
-        coordinate_df,
-        x_factor,
-        y_factor,
-        title,
-        stimulus_level,
-    )
-    fig.tight_layout(rect=[0, 0.04, 1, 1] if stimulus_level is not None else None)
-    return pick_targets
-
-
-def create_pca_figure(stimulus_factor_df, factor_names, title, stimulus_level=None):
+def create_pca_map_figure(stimulus_factor_df, factor_names, title, stimulus_level=None):
     """Create a PCA figure that can be embedded in a GUI canvas."""
     fig = Figure(figsize=(7, 6), dpi=100)
     ax = fig.add_subplot(111)
-    pick_targets = _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level)
-    fig.stimulus_pick_targets = pick_targets
-    fig.pca_pick_targets = pick_targets
+    fig.stimulus_pick_targets = _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level)
     return fig
 
 
@@ -214,29 +184,14 @@ def create_factor_map_figure(stimulus_factor_df, x_factor, y_factor, title, stim
     """Create a two-factor score figure that can be embedded in a GUI canvas."""
     fig = Figure(figsize=(7, 6), dpi=100)
     ax = fig.add_subplot(111)
-    fig.stimulus_pick_targets = _draw_factor_map(
+    fig.stimulus_pick_targets = _draw_stimulus_coordinates(
         fig,
         ax,
-        stimulus_factor_df,
+        stimulus_factor_df[[x_factor, y_factor]],
         x_factor,
         y_factor,
         title,
         stimulus_level,
     )
-    return fig
-
-
-def plot_pca(stimulus_factor_df, factor_names, title, stimulus_level=None):
-    """Plot factor scores in PCA space in a standalone Matplotlib window.
-
-    When ``stimulus_level`` is specified, PCA is fitted to every row but the
-    display is summarized by stimulus using a centroid and a within-stimulus
-    one-SD covariance ellipse.
-    This keeps respondent-level variation in the PCA while avoiding a crowded
-    respondent-by-stimulus plot.
-    """
-    fig, ax = plt.subplots()
-    fig.pca_pick_targets = _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level)
-    fig.canvas.manager.set_window_title("PCA Map")
-    plt.show()
+    fig.tight_layout(rect=[0, 0.04, 1, 1] if stimulus_level is not None else None)
     return fig
