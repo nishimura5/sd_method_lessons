@@ -32,6 +32,19 @@ class BindWidgetStub:
         self.bindings[event_name] = callback
 
 
+class ComboStub:
+    def __init__(self):
+        self.values = None
+        self.current_index = None
+
+    def __setitem__(self, key, value):
+        if key == "values":
+            self.values = value
+
+    def current(self, index):
+        self.current_index = index
+
+
 def test_read_sd_csv_preserves_stimulus_id_as_text(tmp_path):
     csv_path = tmp_path / "stimuli.csv"
     csv_path.write_text("stimulus_id,score\n001,5\n0010,6\n,7\n", encoding="utf-8")
@@ -41,6 +54,27 @@ def test_read_sd_csv_preserves_stimulus_id_as_text(tmp_path):
     assert df["stimulus_id"].tolist() == ["001", "0010", ""]
     assert all(isinstance(value, str) for value in df["stimulus_id"])
     assert df["score"].tolist() == [5, 6, 7]
+
+
+def test_select_file_sets_sibling_thumbnail_folder_with_png(monkeypatch, tmp_path):
+    csv_path = tmp_path / "stimuli.csv"
+    csv_path.write_text("stimulus_id,score\n001,5\n", encoding="utf-8")
+    thumbnail_folder = tmp_path / "thumb"
+    thumbnail_folder.mkdir()
+    (thumbnail_folder / "001.png").touch()
+
+    app = SDApp.__new__(SDApp)
+    app.file_path_var = StringVarStub()
+    app.png_folder_var = StringVarStub()
+    app.stimulus_col_combo = ComboStub()
+    app.resp_col_combo = ComboStub()
+    app.resp_col_var = StringVarStub()
+    app._populate_checkboxes = lambda: None
+    monkeypatch.setattr("sdanalysis_kun.app_sd.filedialog.askopenfilename", lambda **_options: str(csv_path))
+
+    app._select_file()
+
+    assert app.png_folder_var.get() == str(thumbnail_folder)
 
 
 @pytest.mark.parametrize(

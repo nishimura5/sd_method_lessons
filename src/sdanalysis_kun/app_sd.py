@@ -16,7 +16,7 @@ from .sd_funcs import (
     summarize_factor_scores,
 )
 from .sd_plot import create_pca_figure, plot_factor_loadings
-from .stimulus_images import find_stimulus_png
+from .stimulus_images import find_stimulus_png, find_thumbnail_png_folder
 from .tooltip import ToolTip
 
 
@@ -309,6 +309,10 @@ class SDApp:
         self.filtered_df = None
 
         self.file_path_var.set(path)
+
+        thumbnail_folder = find_thumbnail_png_folder(path)
+        if thumbnail_folder is not None:
+            self.png_folder_var.set(str(thumbnail_folder))
 
         # カラム一覧を刺激名コンボボックスに設定
         columns = list(self.df.columns)

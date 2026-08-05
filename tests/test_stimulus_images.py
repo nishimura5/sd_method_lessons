@@ -1,4 +1,40 @@
-from sdanalysis_kun.stimulus_images import find_stimulus_png
+import pytest
+
+from sdanalysis_kun.stimulus_images import find_stimulus_png, find_thumbnail_png_folder
+
+
+@pytest.mark.parametrize("folder_name", ["thumb", "thumbnail"])
+def test_find_thumbnail_png_folder_finds_sibling_with_png(tmp_path, folder_name):
+    csv_path = tmp_path / "data.csv"
+    csv_path.touch()
+    thumbnail_folder = tmp_path / folder_name
+    thumbnail_folder.mkdir()
+    (thumbnail_folder / "001.PNG").touch()
+
+    assert find_thumbnail_png_folder(csv_path) == thumbnail_folder
+
+
+def test_find_thumbnail_png_folder_ignores_empty_and_nested_png_folders(tmp_path):
+    csv_path = tmp_path / "data.csv"
+    csv_path.touch()
+    thumb_folder = tmp_path / "thumb"
+    thumb_folder.mkdir()
+    nested_folder = thumb_folder / "nested"
+    nested_folder.mkdir()
+    (nested_folder / "001.png").touch()
+
+    assert find_thumbnail_png_folder(csv_path) is None
+
+
+def test_find_thumbnail_png_folder_uses_first_candidate_that_contains_png(tmp_path):
+    csv_path = tmp_path / "data.csv"
+    csv_path.touch()
+    (tmp_path / "thumb").mkdir()
+    thumbnail_folder = tmp_path / "thumbnail"
+    thumbnail_folder.mkdir()
+    (thumbnail_folder / "001.png").touch()
+
+    assert find_thumbnail_png_folder(csv_path) == thumbnail_folder
 
 
 def test_find_stimulus_png_uses_exact_text_match(tmp_path):
