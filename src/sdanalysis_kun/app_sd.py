@@ -49,15 +49,20 @@ class SDApp:
         self._build_ui()
 
     def _build_ui(self):
-        # === CSVファイル選択 ===
-        frame_file = ttk.LabelFrame(self.root, text="Select CSV File", padding=10)
-        frame_file.pack(fill=tk.X, padx=10, pady=(10, 5))
+        # === CSVファイル・PNGフォルダ選択 ===
+        frame_source = ttk.Frame(self.root)
+        frame_source.pack(fill=tk.X, padx=10, pady=(10, 5))
+
+        frame_file = ttk.LabelFrame(frame_source, text="Select CSV File", padding=10)
+        frame_file.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 2))
 
         self.file_path_var = tk.StringVar()
         ttk.Entry(frame_file, textvariable=self.file_path_var, state="readonly", width=70).pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
         )
         ttk.Button(frame_file, text="Browse", command=self._select_file).pack(side=tk.LEFT)
+
+        self._add_png_folder_control(frame_source)
 
         # === 刺激名カラム選択 ===
         frame_row = ttk.Frame(self.root)
@@ -400,25 +405,25 @@ class SDApp:
             pass
         return col
 
-    def _add_png_folder_control(self, parent, dialog):
-        """セッション中共有するPNGフォルダ選択コントロールを追加する。"""
+    def _add_png_folder_control(self, parent):
+        """メインウィンドウに共有PNGフォルダの選択コントロールを追加する。"""
         frame_folder = ttk.LabelFrame(parent, text="Thumbnail PNG Folder", padding=10)
-        frame_folder.pack(fill=tk.X, padx=10, pady=(10, 5))
+        frame_folder.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
         ttk.Entry(frame_folder, textvariable=self.png_folder_var, state="readonly").pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
         )
         ttk.Button(
             frame_folder,
             text="Select Folder...",
-            command=lambda: self._select_png_folder(dialog),
+            command=self._select_png_folder,
         ).pack(side=tk.LEFT)
 
-    def _select_png_folder(self, dialog):
+    def _select_png_folder(self):
         """PNGフォルダを選択し、アプリのセッション状態として保持する。"""
         current_folder = self.png_folder_var.get()
         initial_dir = current_folder if current_folder and os.path.isdir(current_folder) else os.path.expanduser("~")
         folder = filedialog.askdirectory(
-            parent=dialog,
+            parent=self.root,
             title="Select Folder Containing PNG Images",
             initialdir=initial_dir,
             mustexist=True,
@@ -489,7 +494,7 @@ class SDApp:
         """選択中の共有フォルダから刺激IDに対応するPNGを表示する。"""
         folder = self.png_folder_var.get()
         if not folder:
-            self._show_png_preview_message(preview_canvas, "Select a thumbnail PNG folder first.")
+            self._show_png_preview_message(preview_canvas, "Select a thumbnail PNG folder in the main window first.")
             return
 
         png_path = find_stimulus_png(folder, stimulus_id)
@@ -530,10 +535,8 @@ class SDApp:
         dialog.geometry(f"900x600+{x}+{y}")
         dialog.minsize(650, 400)
 
-        self._add_png_folder_control(dialog, dialog)
-
         paned = ttk.PanedWindow(dialog, orient=tk.HORIZONTAL)
-        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 5))
 
         frame_stimuli = ttk.LabelFrame(paned, text="Stimuli", padding=5)
         frame_preview = ttk.LabelFrame(paned, text="PNG Preview", padding=5)
@@ -564,7 +567,7 @@ class SDApp:
         initial_message = (
             "Hover over a stimulus label to display its PNG."
             if self.png_folder_var.get()
-            else "Select a thumbnail PNG folder, then hover over a stimulus label."
+            else "Select a thumbnail PNG folder in the main window, then hover over a stimulus label."
         )
         preview_canvas = self._create_png_preview_canvas(frame_preview, initial_message)
 
@@ -883,9 +886,6 @@ class SDApp:
         x_factor_var = tk.StringVar(master=dialog, value=self.factor_names[0])
         y_factor_var = tk.StringVar(master=dialog, value=self.factor_names[1])
 
-        # PNG画像フォルダ選択
-        self._add_png_folder_control(dialog, dialog)
-
         # 左に刺激マップ、右に画像プレビューを表示する領域を配置
         paned = ttk.PanedWindow(dialog, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
@@ -898,7 +898,7 @@ class SDApp:
         initial_message = (
             "Click a stimulus point to display its PNG."
             if self.png_folder_var.get()
-            else "Select a thumbnail PNG folder, then click a stimulus point."
+            else "Select a thumbnail PNG folder in the main window, then click a stimulus point."
         )
         preview_canvas = self._create_png_preview_canvas(frame_preview, initial_message)
 

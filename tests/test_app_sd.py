@@ -112,8 +112,9 @@ def test_select_png_folder_reuses_and_updates_session_folder(monkeypatch, tmp_pa
     selected_folder = tmp_path / "selected"
     current_folder.mkdir()
     selected_folder.mkdir()
-    dialog = object()
+    root = object()
     app = SDApp.__new__(SDApp)
+    app.root = root
     app.png_folder_var = StringVarStub(str(current_folder))
     received_options = {}
 
@@ -123,9 +124,9 @@ def test_select_png_folder_reuses_and_updates_session_folder(monkeypatch, tmp_pa
 
     monkeypatch.setattr("sdanalysis_kun.app_sd.filedialog.askdirectory", askdirectory)
 
-    app._select_png_folder(dialog)
+    app._select_png_folder()
 
-    assert received_options["parent"] is dialog
+    assert received_options["parent"] is root
     assert received_options["initialdir"] == str(current_folder)
     assert app.png_folder_var.get() == str(selected_folder)
 
@@ -134,10 +135,11 @@ def test_select_png_folder_keeps_session_folder_when_cancelled(monkeypatch, tmp_
     current_folder = tmp_path / "current"
     current_folder.mkdir()
     app = SDApp.__new__(SDApp)
+    app.root = object()
     app.png_folder_var = StringVarStub(str(current_folder))
     monkeypatch.setattr("sdanalysis_kun.app_sd.filedialog.askdirectory", lambda **_options: "")
 
-    app._select_png_folder(object())
+    app._select_png_folder()
 
     assert app.png_folder_var.get() == str(current_folder)
 
@@ -151,7 +153,7 @@ def test_show_stimulus_png_prompts_for_folder_when_session_folder_is_empty():
 
     app._show_stimulus_png(preview_canvas, object(), "A")
 
-    assert messages == [(preview_canvas, "Select a thumbnail PNG folder first.")]
+    assert messages == [(preview_canvas, "Select a thumbnail PNG folder in the main window first.")]
 
 
 def test_show_stimulus_png_uses_shared_lookup_and_preview(monkeypatch, tmp_path):
