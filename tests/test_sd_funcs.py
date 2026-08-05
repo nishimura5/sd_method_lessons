@@ -27,7 +27,7 @@ def test_summarize_factor_scores_calculates_mean_and_sample_sd():
     assert np.isnan(summary_df.loc["B", "Factor1 SD"])
 
 
-def test_factor_analysis_aligns_promax_correlations_with_sorted_loadings():
+def test_factor_analysis_returns_promax_pattern_structure_and_aligned_correlations():
     rng = np.random.default_rng(42)
     latent = rng.multivariate_normal(
         [0.0, 0.0, 0.0],
@@ -52,7 +52,9 @@ def test_factor_analysis_aligns_promax_correlations_with_sorted_loadings():
     factor_names = ["Factor 1", "Factor 2", "Factor 3"]
     source = pd.DataFrame(values, columns=columns)
 
-    loading_df, _, corr_df = factor_analysis(source, columns, factor_names, rotation="promax")
+    pattern_loading_df, structure_loading_df, factor_score_df, factor_corr_df = factor_analysis(
+        source, columns, factor_names, rotation="promax"
+    )
 
     fitted = FactorAnalyzer(n_factors=3, rotation="promax", method="minres").fit(values)
     expected_phi = np.linalg.lstsq(fitted.loadings_, fitted.structure_, rcond=None)[0]
@@ -63,5 +65,26 @@ def test_factor_analysis_aligns_promax_correlations_with_sorted_loadings():
     # Its phi_ remains in the pre-sort order, while loadings_ and structure_
     # use the post-sort order.
     assert not np.allclose(fitted.phi_, expected_phi)
-    np.testing.assert_allclose(loading_df.to_numpy(), fitted.loadings_)
-    np.testing.assert_allclose(corr_df.to_numpy(), expected_phi.round(2))
+    np.testing.assert_allclose(pattern_loading_df.to_numpy(), fitted.loadings_)
+    np.testing.assert_allclose(structure_loading_df.to_numpy(), fitted.structure_)
+    np.testing.assert_allclose(factor_corr_df.to_numpy(), expected_phi)
+    np.testing.assert_allclose(
+        structure_loading_df.to_numpy(),
+        pattern_loading_df.to_numpy() @ factor_corr_df.to_numpy(),
+    )
+    assert factor_score_df.shape == (len(source), len(factor_names))
+
+
+def test_factor_analysis_returns_no_structure_or_factor_correlations_for_varimax():
+    rng = np.random.default_rng(7)
+    columns = [f"item_{i}" for i in range(5)]
+    source = pd.DataFrame(rng.normal(size=(100, len(columns))), columns=columns)
+
+    pattern_loading_df, structure_loading_df, factor_score_df, factor_corr_df = factor_analysis(
+        source, columns, ["Factor 1", "Factor 2"], rotation="varimax"
+    )
+
+    assert pattern_loading_df.shape == (len(columns), 2)
+    assert structure_loading_df is None
+    assert factor_score_df.shape == (len(source), 2)
+    assert factor_corr_df is None

@@ -34,11 +34,12 @@ class SDApp:
 
         self.df = None
         self.check_vars = {}
-        self.loading_df = None
+        self.pattern_loading_df = None
+        self.structure_loading_df = None
         self.score_df = None
         self.score_summary_df = None
         self.factor_names = None
-        self.corr_df = None
+        self.factor_corr_df = None
         self.filtered_df = None
         self.target_stimulus_table = {}  # 分析対象の刺激名のホワイトリスト、{"colname": [stimulus1, stimulus2, ...], ...} の形式
         self.invert_map = {}
@@ -593,8 +594,8 @@ class SDApp:
             self.stats_tree.delete(item)
 
         # 因子負荷量がある場合はカラムを動的に追加
-        if self.loading_df is not None:
-            factor_cols = list(self.loading_df.columns)
+        if self.pattern_loading_df is not None:
+            factor_cols = list(self.pattern_loading_df.columns)
             all_cols = ["mean", "std"] + factor_cols
         else:
             factor_cols = []
@@ -612,10 +613,10 @@ class SDApp:
 
         selected_cols = [col for col, var in self.check_vars.items() if var.get()]
 
-        # loading_dfがある場合はそのソート順（best_factor, max_abs_loading）に従う
-        if self.loading_df is not None:
-            sorted_cols = [c for c in self.loading_df.index if c in selected_cols]
-            # loading_dfに含まれない選択カラムは末尾に追加
+        # pattern_loading_dfがある場合はそのソート順（best_factor, max_abs_loading）に従う
+        if self.pattern_loading_df is not None:
+            sorted_cols = [c for c in self.pattern_loading_df.index if c in selected_cols]
+            # pattern_loading_dfに含まれない選択カラムは末尾に追加
             sorted_cols += [c for c in selected_cols if c not in sorted_cols]
         else:
             sorted_cols = selected_cols
@@ -628,9 +629,9 @@ class SDApp:
             if inverted:
                 mean_val = int(self.scale_var.get()) + 1 - mean_val
             row_vals = [f"{mean_val:.3f}", f"{std_val:.3f}"]
-            if self.loading_df is not None and col in self.loading_df.index:
+            if self.pattern_loading_df is not None and col in self.pattern_loading_df.index:
                 for fc in factor_cols:
-                    val = self.loading_df.at[col, fc]
+                    val = self.pattern_loading_df.at[col, fc]
                     if inverted:
                         val = -val
                     row_vals.append(f"{val:.3f}")
@@ -714,7 +715,7 @@ class SDApp:
             factor_names = [f"Factor{i + 1}" for i in range(n_factors)]
             self.current_rotation = self.rotation_var.get()
 
-            loading_df, factor_score_df, corr_df = factor_analysis(
+            pattern_loading_df, structure_loading_df, factor_score_df, factor_corr_df = factor_analysis(
                 filtered_df,
                 selected_cols,
                 factor_names,
@@ -730,27 +731,34 @@ class SDApp:
             group_cols = [resp_col, stimulus_col] if resp_col else [stimulus_col]
             score_df, score_summary_df = summarize_factor_scores(factor_score_df, group_cols, factor_names)
             # Sort factors
-            loading_df["max_abs_loading"] = loading_df.abs().max(axis=1)
-            loading_df["best_factor"] = loading_df.abs().idxmax(axis=1)
-            loading_df = loading_df.sort_values(["best_factor", "max_abs_loading"], ascending=[True, False])
+            pattern_loading_df["max_abs_loading"] = pattern_loading_df.abs().max(axis=1)
+            pattern_loading_df["best_factor"] = pattern_loading_df.abs().idxmax(axis=1)
+            pattern_loading_df = pattern_loading_df.sort_values(
+                ["best_factor", "max_abs_loading"], ascending=[True, False]
+            )
 
             # 因子負荷が負の形容詞対を反転させるためのマップを作成
             self.invert_map = {
-                col: bool(loading_df.loc[col, loading_df.loc[col, "best_factor"]] < 0) for col in loading_df.index
+                col: bool(pattern_loading_df.loc[col, pattern_loading_df.loc[col, "best_factor"]] < 0)
+                for col in pattern_loading_df.index
             }
 
-            loading_df = loading_df.drop(columns=["max_abs_loading", "best_factor"])
+            sorted_index = pattern_loading_df.index
+            pattern_loading_df = pattern_loading_df.drop(columns=["max_abs_loading", "best_factor"])
+            if structure_loading_df is not None:
+                structure_loading_df = structure_loading_df.loc[sorted_index]
 
             # 結果を表示
             self.result_text.delete("1.0", tk.END)
 
             self.result_text.insert(tk.END, score_summary_df.round(3).to_string() + "\n")
 
-            self.loading_df = loading_df
+            self.pattern_loading_df = pattern_loading_df
+            self.structure_loading_df = structure_loading_df
             # PCAでは平均因子得点のみを使用する
             self.score_df = score_df
             self.score_summary_df = score_summary_df
-            self.corr_df = corr_df
+            self.factor_corr_df = factor_corr_df
             self.factor_names = factor_names
             self.btn_apply_reg.config(state=tk.NORMAL)
             self.btn_plot_loadings.config(state=tk.NORMAL)
@@ -767,16 +775,17 @@ class SDApp:
             self.btn_run_analysis.config(state=tk.NORMAL)
 
     def _plot_loadings(self):
-        if self.loading_df is not None:
+        if self.pattern_loading_df is not None:
             if self.current_rotation == "varimax":
                 rotation_label = "Varimax Rotation"
             elif self.current_rotation == "promax":
                 rotation_label = "Promax Rotation"
             else:
                 rotation_label = "No Rotation"
-            title = f"Factor Loading Matrix ({rotation_label})"
+            matrix_label = "Factor Pattern Matrix" if self.current_rotation == "promax" else "Factor Loading Matrix"
+            title = f"{matrix_label} ({rotation_label})"
             # 反転を反映したコピーを作成
-            plot_df = self.loading_df.copy()
+            plot_df = self.pattern_loading_df.copy()
             original_cols = list(plot_df.index)
             for col in original_cols:
                 if self.invert_map.get(col, False):
@@ -792,7 +801,7 @@ class SDApp:
                 caption += "Parallel analysis percentile: 95th\n"
 
             # 各因子に対してCronbach's alphaを計算してキャプションに追加
-            factor_items = pickup_by_factor(self.loading_df)
+            factor_items = pickup_by_factor(self.pattern_loading_df)
             alpha_df = self.filtered_df if self.filtered_df is not None else self.df
             scale_num = int(self.scale_var.get())
             cronbach_caption = f"Cronbach's alpha (filtered n={len(alpha_df)}):\n"
@@ -809,12 +818,12 @@ class SDApp:
                 plot_df,
                 title=title,
                 inverted_rows=inverted_rows,
-                promax_corr_df=self.corr_df if self.current_rotation == "promax" else None,
+                promax_corr_df=self.factor_corr_df if self.current_rotation == "promax" else None,
                 caption=caption + cronbach_caption,
             )
 
     def _export_loadings_csv(self):
-        if self.loading_df is None:
+        if self.pattern_loading_df is None:
             return
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         path = filedialog.asksaveasfilename(
@@ -826,7 +835,7 @@ class SDApp:
         )
         if not path:
             return
-        export_df = self.loading_df.copy()
+        export_df = self.pattern_loading_df.copy()
         # _plot_loadings と同じ手順で反転と表示名変換を適用
         original_cols = list(export_df.index)
         for col in original_cols:

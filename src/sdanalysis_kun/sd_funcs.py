@@ -370,7 +370,7 @@ def summarize_factor_scores(factor_score_df, group_cols, factor_names):
 
 
 def factor_analysis(src_df, tar_cols, factor_names, rotation="No rotation", corr="pearson"):
-    """因子分析を実行し、指定回転を適用して因子負荷量と因子得点を返す関数
+    """因子分析を実行し、指定回転を適用した負荷行列と因子得点を返す関数
     corr="polychoric" を選択することでPolychoric相関行列を用いた因子分析を実行できる。
     Args:
         src_df (pd.DataFrame): 元のデータフレーム
@@ -379,10 +379,11 @@ def factor_analysis(src_df, tar_cols, factor_names, rotation="No rotation", corr
         rotation (str): 回転法。"No rotation" / "varimax" / "promax"
         corr (str): 相関の種類。"pearson" / "polychoric"
     Returns:
-        tuple: (rotated_loading_df, factor_score_df, promax_msg)
-            rotated_loading_df (pd.DataFrame): 因子負荷量
+        tuple: (pattern_loading_df, structure_loading_df, factor_score_df, factor_corr_df)
+            pattern_loading_df (pd.DataFrame): ``fa.loadings_``。promax回転時はパターン行列
+            structure_loading_df (pd.DataFrame or None): promax回転時の構造行列
             factor_score_df (pd.DataFrame): 因子得点
-            corr_df (pd.DataFrame or None): promax回転の因子相関行列（rotation="promax"の場合のみ）
+            factor_corr_df (pd.DataFrame or None): promax回転時の因子相関行列
     """
     try:
         n_factors = len(factor_names)
@@ -409,26 +410,27 @@ def factor_analysis(src_df, tar_cols, factor_names, rotation="No rotation", corr
             _validate_corr_matrix(corr_matrix, "pearson")
             fa.fit(standard_vals)
 
-        rotated_loadings = fa.loadings_
+        pattern_loadings = fa.loadings_
         if is_corr_matrix:
             # 順序カテゴリを潜在連続変数に写像してから回帰法で因子得点を計算
             latent_vals = _ordinal_to_latent_scores(vals)
             inv_corr = np.linalg.pinv(corr_matrix)
-            score_coef = inv_corr @ rotated_loadings
-            score_coef = score_coef @ np.linalg.pinv(rotated_loadings.T @ inv_corr @ rotated_loadings)
+            score_coef = inv_corr @ pattern_loadings
+            score_coef = score_coef @ np.linalg.pinv(pattern_loadings.T @ inv_corr @ pattern_loadings)
             factor_scores = latent_vals @ score_coef
         else:
             factor_scores = fa.transform(standard_vals)
 
-        rotated_loading_df = pd.DataFrame(rotated_loadings, index=tar_cols, columns=factor_names)
+        pattern_loading_df = pd.DataFrame(pattern_loadings, index=tar_cols, columns=factor_names)
         valid_index = vals_df.index
         factor_score_df = pd.DataFrame(factor_scores, columns=factor_names, index=valid_index)
-        # promax回転の場合、相関係数を取得
+        structure_loading_df = None
+        factor_corr_df = None
         if rotation == "promax":
-            # これは因子負荷行列のplotの横に表示するときに使用される
+            structure_loading_df = pd.DataFrame(fa.structure_, index=tar_cols, columns=factor_names)
             aligned_phi = _get_aligned_factor_correlations(fa)
-            corr_df = pd.DataFrame(aligned_phi, index=factor_names, columns=factor_names).round(2)
+            factor_corr_df = pd.DataFrame(aligned_phi, index=factor_names, columns=factor_names)
 
-        return rotated_loading_df, factor_score_df, corr_df if rotation == "promax" else None
+        return pattern_loading_df, structure_loading_df, factor_score_df, factor_corr_df
     except Exception as e:
         raise ValueError(f"Factor analysis failed ({corr}): {e}") from e
