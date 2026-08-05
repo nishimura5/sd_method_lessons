@@ -34,6 +34,21 @@ def _validate_corr_matrix(corr_mat, context):
         raise ValueError(f"{context}: correlation matrix contains NaN or Inf.")
 
 
+def _get_aligned_factor_correlations(fa):
+    """Return factor correlations in the same factor order as ``fa.loadings_``."""
+    if fa.phi_ is None:
+        return np.eye(fa.loadings_.shape[1])
+
+    # factor-analyzer 0.5.1 sorts loadings_ and structure_ by factor variance
+    # after rotation, but does not apply that ordering to phi_. Since the
+    # structure matrix is pattern loadings @ factor correlations, recover phi
+    # from the two arrays that have already been sorted consistently.
+    phi = np.linalg.lstsq(fa.loadings_, fa.structure_, rcond=None)[0]
+    phi = (phi + phi.T) / 2
+    np.fill_diagonal(phi, 1.0)
+    return phi
+
+
 def _notify_progress(progress_callback, current, total):
     """進捗通知用のコールバックが指定されている場合のみ呼び出す。"""
     if progress_callback is not None:
@@ -411,7 +426,8 @@ def factor_analysis(src_df, tar_cols, factor_names, rotation="No rotation", corr
         # promax回転の場合、相関係数を取得
         if rotation == "promax":
             # これは因子負荷行列のplotの横に表示するときに使用される
-            corr_df = pd.DataFrame(fa.phi_, index=factor_names, columns=factor_names).round(2)
+            aligned_phi = _get_aligned_factor_correlations(fa)
+            corr_df = pd.DataFrame(aligned_phi, index=factor_names, columns=factor_names).round(2)
 
         return rotated_loading_df, factor_score_df, corr_df if rotation == "promax" else None
     except Exception as e:

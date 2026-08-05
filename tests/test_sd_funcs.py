@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
 import pytest
+from factor_analyzer import FactorAnalyzer
 
-from sdanalysis_kun.sd_funcs import summarize_factor_scores
+from sdanalysis_kun.sd_funcs import factor_analysis, summarize_factor_scores
 
 
 def test_summarize_factor_scores_calculates_mean_and_sample_sd():
@@ -24,3 +25,43 @@ def test_summarize_factor_scores_calculates_mean_and_sample_sd():
     assert summary_df.loc["A", "Factor2 Mean"] == pytest.approx(3.0)
     assert summary_df.loc["A", "Factor2 SD"] == pytest.approx(np.sqrt(2.0))
     assert np.isnan(summary_df.loc["B", "Factor1 SD"])
+
+
+def test_factor_analysis_aligns_promax_correlations_with_sorted_loadings():
+    rng = np.random.default_rng(42)
+    latent = rng.multivariate_normal(
+        [0.0, 0.0, 0.0],
+        [[1.0, 0.5, 0.2], [0.5, 1.0, 0.3], [0.2, 0.3, 1.0]],
+        size=500,
+    )
+    population_loadings = np.array(
+        [
+            [0.9, 0.1, 0.0],
+            [0.8, 0.1, 0.0],
+            [0.7, 0.2, 0.0],
+            [0.0, 0.7, 0.1],
+            [0.1, 0.6, 0.1],
+            [0.0, 0.5, 0.2],
+            [0.1, 0.0, 0.55],
+            [0.0, 0.1, 0.5],
+            [0.1, 0.1, 0.45],
+        ]
+    )
+    values = latent @ population_loadings.T + rng.normal(scale=0.5, size=(500, 9))
+    columns = [f"item_{i}" for i in range(values.shape[1])]
+    factor_names = ["Factor 1", "Factor 2", "Factor 3"]
+    source = pd.DataFrame(values, columns=columns)
+
+    loading_df, _, corr_df = factor_analysis(source, columns, factor_names, rotation="promax")
+
+    fitted = FactorAnalyzer(n_factors=3, rotation="promax", method="minres").fit(values)
+    expected_phi = np.linalg.lstsq(fitted.loadings_, fitted.structure_, rcond=None)[0]
+    expected_phi = (expected_phi + expected_phi.T) / 2
+    np.fill_diagonal(expected_phi, 1.0)
+
+    # This data causes factor-analyzer 0.5.1 to change the factor order.
+    # Its phi_ remains in the pre-sort order, while loadings_ and structure_
+    # use the post-sort order.
+    assert not np.allclose(fitted.phi_, expected_phi)
+    np.testing.assert_allclose(loading_df.to_numpy(), fitted.loadings_)
+    np.testing.assert_allclose(corr_df.to_numpy(), expected_phi.round(2))
