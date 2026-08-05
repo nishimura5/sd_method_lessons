@@ -82,35 +82,25 @@ def _add_sd_ellipse(ax, points, color):
     ax.add_patch(ellipse)
 
 
-def _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level=None):
-    """Draw factor scores in PCA space on an existing Matplotlib figure."""
-    stimulus_factor_std = StandardScaler().fit_transform(stimulus_factor_df.values)
-    pca = PCA(n_components=2, random_state=0)
-    stimulus_pca_2d = pca.fit_transform(stimulus_factor_std)
-    factor_axis_vectors_2d = pca.components_.T
-
-    stimulus_pca_df = pd.DataFrame(
-        stimulus_pca_2d,
-        index=stimulus_factor_df.index,
-        columns=["PC1", "PC2"],
-    )
+def _draw_stimulus_coordinates(fig, ax, coordinate_df, x_column, y_column, title, stimulus_level=None):
+    """Draw 2D stimulus coordinates and return their Matplotlib pick targets."""
     pick_targets = {}
     ax.axhline(0, color="gray", linewidth=0.8)
     ax.axvline(0, color="gray", linewidth=0.8)
     if stimulus_level is None:
-        points = ax.scatter(stimulus_pca_df["PC1"], stimulus_pca_df["PC2"], s=20, picker=5)
-        pick_targets[points] = list(stimulus_pca_df.index)
-        for stimulus_code, row in stimulus_pca_df.iterrows():
-            ax.text(row["PC1"] + 0.03, row["PC2"] + 0.03, stimulus_code, fontsize=10)
+        points = ax.scatter(coordinate_df[x_column], coordinate_df[y_column], s=20, picker=5)
+        pick_targets[points] = list(coordinate_df.index)
+        for stimulus_code, row in coordinate_df.iterrows():
+            ax.text(row[x_column] + 0.03, row[y_column] + 0.03, stimulus_code, fontsize=10)
     else:
-        stimulus_values = stimulus_pca_df.index.get_level_values(stimulus_level)
-        grouped_pca_df = stimulus_pca_df.assign(_stimulus=stimulus_values).groupby("_stimulus", sort=False)
-        groups = list(grouped_pca_df)
+        stimulus_values = coordinate_df.index.get_level_values(stimulus_level)
+        grouped_coordinate_df = coordinate_df.assign(_stimulus=stimulus_values).groupby("_stimulus", sort=False)
+        groups = list(grouped_coordinate_df)
         color_map = plt.get_cmap("tab20", max(len(groups), 1))
 
         for group_index, (stimulus_code, group_df) in enumerate(groups):
             color = color_map(group_index)
-            points = group_df[["PC1", "PC2"]].to_numpy()
+            points = group_df[[x_column, y_column]].to_numpy()
             center = points.mean(axis=0)
             _add_sd_ellipse(ax, points, color)
             point = ax.scatter(
@@ -134,6 +124,34 @@ def _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level=N
             fontsize=8,
         )
 
+    ax.set_xlabel(x_column)
+    ax.set_ylabel(y_column)
+    ax.set_title(title)
+    return pick_targets
+
+
+def _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level=None):
+    """Draw factor scores in PCA space on an existing Matplotlib figure."""
+    stimulus_factor_std = StandardScaler().fit_transform(stimulus_factor_df[factor_names].values)
+    pca = PCA(n_components=2, random_state=0)
+    stimulus_pca_2d = pca.fit_transform(stimulus_factor_std)
+    factor_axis_vectors_2d = pca.components_.T
+
+    stimulus_pca_df = pd.DataFrame(
+        stimulus_pca_2d,
+        index=stimulus_factor_df.index,
+        columns=["PC1", "PC2"],
+    )
+    pick_targets = _draw_stimulus_coordinates(
+        fig,
+        ax,
+        stimulus_pca_df,
+        "PC1",
+        "PC2",
+        title,
+        stimulus_level,
+    )
+
     arrow_scale = 1.5
     for i, feature_name in enumerate(factor_names):
         x = factor_axis_vectors_2d[i, 0] * arrow_scale
@@ -155,7 +173,29 @@ def _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level=N
     pc2_ratio = pca.explained_variance_ratio_[1] * 100
     ax.set_xlabel(f"PC1 ({pc1_ratio:.1f}%)")
     ax.set_ylabel(f"PC2 ({pc2_ratio:.1f}%)")
-    ax.set_title(title)
+    fig.tight_layout(rect=[0, 0.04, 1, 1] if stimulus_level is not None else None)
+    return pick_targets
+
+
+def _draw_factor_map(fig, ax, stimulus_factor_df, x_factor, y_factor, title, stimulus_level=None):
+    """Draw two selected factor-score columns without applying PCA."""
+    if x_factor == y_factor:
+        raise ValueError("X and Y axes must use different factors.")
+
+    missing_factors = [factor for factor in (x_factor, y_factor) if factor not in stimulus_factor_df.columns]
+    if missing_factors:
+        raise ValueError(f"Unknown factor column(s): {', '.join(missing_factors)}")
+
+    coordinate_df = stimulus_factor_df[[x_factor, y_factor]]
+    pick_targets = _draw_stimulus_coordinates(
+        fig,
+        ax,
+        coordinate_df,
+        x_factor,
+        y_factor,
+        title,
+        stimulus_level,
+    )
     fig.tight_layout(rect=[0, 0.04, 1, 1] if stimulus_level is not None else None)
     return pick_targets
 
@@ -164,7 +204,25 @@ def create_pca_figure(stimulus_factor_df, factor_names, title, stimulus_level=No
     """Create a PCA figure that can be embedded in a GUI canvas."""
     fig = Figure(figsize=(7, 6), dpi=100)
     ax = fig.add_subplot(111)
-    fig.pca_pick_targets = _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level)
+    pick_targets = _draw_pca(fig, ax, stimulus_factor_df, factor_names, title, stimulus_level)
+    fig.stimulus_pick_targets = pick_targets
+    fig.pca_pick_targets = pick_targets
+    return fig
+
+
+def create_factor_map_figure(stimulus_factor_df, x_factor, y_factor, title, stimulus_level=None):
+    """Create a two-factor score figure that can be embedded in a GUI canvas."""
+    fig = Figure(figsize=(7, 6), dpi=100)
+    ax = fig.add_subplot(111)
+    fig.stimulus_pick_targets = _draw_factor_map(
+        fig,
+        ax,
+        stimulus_factor_df,
+        x_factor,
+        y_factor,
+        title,
+        stimulus_level,
+    )
     return fig
 
 

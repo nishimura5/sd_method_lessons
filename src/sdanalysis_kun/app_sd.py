@@ -15,7 +15,7 @@ from .sd_funcs import (
     set_japanese_font,
     summarize_factor_scores,
 )
-from .sd_plot import create_pca_figure, plot_factor_loadings
+from .sd_plot import create_factor_map_figure, create_pca_figure, plot_factor_loadings
 from .stimulus_images import find_stimulus_png, find_thumbnail_png_folder
 from .tooltip import ToolTip
 
@@ -274,7 +274,12 @@ class SDApp:
         frame_plot = ttk.Frame(frame_bottom_right)
         frame_plot.pack(fill=tk.X, pady=(0, 5))
 
-        self.btn_plot_pca = ttk.Button(frame_plot, text="Plot PCA Map", command=self._plot_pca, state=tk.DISABLED)
+        self.btn_plot_pca = ttk.Button(
+            frame_plot,
+            text="Plot Stimulus Map",
+            command=self._plot_stimulus_map,
+            state=tk.DISABLED,
+        )
         self.btn_plot_pca.pack(side=tk.LEFT)
 
         self.btn_export_csv = ttk.Button(frame_plot, text="Export Summary", command=self._export_csv, state=tk.DISABLED)
@@ -422,7 +427,7 @@ class SDApp:
             self.png_folder_var.set(folder)
 
     def _create_png_preview_canvas(self, parent, initial_message):
-        """PCA・刺激フィルターで共用するPNGプレビュー領域を作成する。"""
+        """刺激マップ・刺激フィルターで共用するPNGプレビュー領域を作成する。"""
         preview_canvas = tk.Canvas(parent, background="white", highlightthickness=0)
         preview_canvas.pack(fill=tk.BOTH, expand=True)
         self._show_png_preview_message(preview_canvas, initial_message)
@@ -755,7 +760,7 @@ class SDApp:
 
             self.pattern_loading_df = pattern_loading_df
             self.structure_loading_df = structure_loading_df
-            # PCAでは平均因子得点のみを使用する
+            # 刺激マップでは平均因子得点のみを使用する
             self.score_df = score_df
             self.score_summary_df = score_summary_df
             self.factor_corr_df = factor_corr_df
@@ -763,7 +768,7 @@ class SDApp:
             self.btn_apply_reg.config(state=tk.NORMAL)
             self.btn_plot_loadings.config(state=tk.NORMAL)
             self.btn_export_loadings.config(state=tk.NORMAL)
-            self.btn_plot_pca.config(state=tk.NORMAL)
+            self.btn_plot_pca.config(state=tk.NORMAL if len(factor_names) >= 2 else tk.DISABLED)
             self.btn_export_csv.config(state=tk.NORMAL)
 
             self._update_stats_tree()
@@ -863,46 +868,88 @@ class SDApp:
         self.score_summary_df.round(3).to_csv(path, encoding="utf-8-sig")
         messagebox.showinfo("Export", f"Saved to:\n{path}")
 
-    def _plot_pca(self):
-        if self.score_df is not None:
-            stimulus_level = self.stimulus_col_var.get() if self.resp_col_var.get() else None
-            dialog = tk.Toplevel(self.root)
-            dialog.title("PCA Map")
-            dialog.geometry("1200x700")
-            dialog.minsize(800, 500)
-            dialog.transient(self.root)
+    def _plot_stimulus_map(self):
+        if self.score_df is None or not self.factor_names:
+            return
+        if len(self.factor_names) < 2:
+            messagebox.showwarning("Stimulus Map", "At least two factors are required to draw a stimulus map.")
+            return
 
-            # PNG画像フォルダ選択
-            self._add_png_folder_control(dialog, dialog)
+        stimulus_level = self.stimulus_col_var.get() if self.resp_col_var.get() else None
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Stimulus Map")
+        dialog.geometry("1200x740")
+        dialog.minsize(800, 540)
+        dialog.transient(self.root)
 
-            # 左にPCA、右に画像プレビューを表示する領域を配置
-            paned = ttk.PanedWindow(dialog, orient=tk.HORIZONTAL)
-            paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
+        # PCA・Factor軸で共用する表示コントロール
+        frame_controls = ttk.Frame(dialog, padding=(10, 8, 10, 0))
+        frame_controls.pack(fill=tk.X)
+        plot_mode_var = tk.StringVar(master=dialog, value="pca")
+        x_factor_var = tk.StringVar(master=dialog, value=self.factor_names[0])
+        y_factor_var = tk.StringVar(master=dialog, value=self.factor_names[1])
 
-            frame_pca = ttk.LabelFrame(paned, text="PCA Map", padding=5)
-            frame_preview = ttk.LabelFrame(paned, text="PNG Preview", padding=5)
-            paned.add(frame_pca, weight=3)
-            paned.add(frame_preview, weight=2)
+        # PNG画像フォルダ選択
+        self._add_png_folder_control(dialog, dialog)
 
-            fig = create_pca_figure(
-                self.score_df,
-                self.factor_names,
-                title="Stimulus Map (2D PCA with Factor Axes)",
-                stimulus_level=stimulus_level,
-            )
-            pca_canvas = FigureCanvasTkAgg(fig, master=frame_pca)
-            pca_canvas.draw()
-            pca_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        # 左に刺激マップ、右に画像プレビューを表示する領域を配置
+        paned = ttk.PanedWindow(dialog, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
 
-            initial_message = (
-                "Click a stimulus point to display its PNG."
-                if self.png_folder_var.get()
-                else "Select a thumbnail PNG folder, then click a stimulus point."
-            )
-            preview_canvas = self._create_png_preview_canvas(frame_preview, initial_message)
+        frame_map = ttk.LabelFrame(paned, text="PCA Map", padding=5)
+        frame_preview = ttk.LabelFrame(paned, text="PNG Preview", padding=5)
+        paned.add(frame_map, weight=3)
+        paned.add(frame_preview, weight=2)
+
+        initial_message = (
+            "Click a stimulus point to display its PNG."
+            if self.png_folder_var.get()
+            else "Select a thumbnail PNG folder, then click a stimulus point."
+        )
+        preview_canvas = self._create_png_preview_canvas(frame_preview, initial_message)
+        active_plot = {"canvas": None, "pick_connection_id": None}
+
+        def render_map():
+            if plot_mode_var.get() == "factors":
+                x_factor = x_factor_var.get()
+                y_factor = y_factor_var.get()
+                if x_factor == y_factor:
+                    messagebox.showwarning(
+                        "Stimulus Map",
+                        "Select two different factors for the X and Y axes.",
+                        parent=dialog,
+                    )
+                    return
+                fig = create_factor_map_figure(
+                    self.score_df,
+                    x_factor,
+                    y_factor,
+                    title=f"Stimulus Map ({x_factor} × {y_factor})",
+                    stimulus_level=stimulus_level,
+                )
+                frame_map.configure(text="Factor Axes Map")
+            else:
+                fig = create_pca_figure(
+                    self.score_df,
+                    self.factor_names,
+                    title="Stimulus Map (2D PCA with Factor Axes)",
+                    stimulus_level=stimulus_level,
+                )
+                frame_map.configure(text="PCA Map")
+
+            old_canvas = active_plot["canvas"]
+            old_connection_id = active_plot["pick_connection_id"]
+            if old_canvas is not None and old_connection_id is not None:
+                old_canvas.mpl_disconnect(old_connection_id)
+            for child in frame_map.winfo_children():
+                child.destroy()
+
+            map_canvas = FigureCanvasTkAgg(fig, master=frame_map)
+            map_canvas.draw()
+            map_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
             def on_pick(event):
-                stimulus_ids = fig.pca_pick_targets.get(event.artist)
+                stimulus_ids = fig.stimulus_pick_targets.get(event.artist)
                 if not stimulus_ids or event.ind is None or len(event.ind) == 0:
                     return
                 point_index = int(event.ind[0])
@@ -912,12 +959,66 @@ class SDApp:
                 stimulus_id = stimulus_ids[point_index]
                 self._show_stimulus_png(preview_canvas, dialog, stimulus_id)
 
-            pick_connection_id = pca_canvas.mpl_connect("pick_event", on_pick)
+            pick_connection_id = map_canvas.mpl_connect("pick_event", on_pick)
+            active_plot["canvas"] = map_canvas
+            active_plot["pick_connection_id"] = pick_connection_id
 
             # Tk側で参照を保持し、ダイアログ表示中にCanvasが破棄されないようにする
-            dialog.pca_canvas = pca_canvas
-            dialog.preview_canvas = preview_canvas
+            dialog.map_figure = fig
+            dialog.map_canvas = map_canvas
             dialog.pick_connection_id = pick_connection_id
+
+        def on_plot_mode_change():
+            factor_state = "readonly" if plot_mode_var.get() == "factors" else tk.DISABLED
+            x_factor_combo.configure(state=factor_state)
+            y_factor_combo.configure(state=factor_state)
+            render_map()
+
+        ttk.Label(frame_controls, text="Plot:").pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Radiobutton(
+            frame_controls,
+            text="PCA",
+            variable=plot_mode_var,
+            value="pca",
+            command=on_plot_mode_change,
+        ).pack(side=tk.LEFT)
+        ttk.Radiobutton(
+            frame_controls,
+            text="Factor Axes",
+            variable=plot_mode_var,
+            value="factors",
+            command=on_plot_mode_change,
+        ).pack(side=tk.LEFT, padx=(2, 12))
+
+        ttk.Label(frame_controls, text="X:").pack(side=tk.LEFT, padx=(0, 2))
+        x_factor_combo = ttk.Combobox(
+            frame_controls,
+            textvariable=x_factor_var,
+            values=self.factor_names,
+            state=tk.DISABLED,
+            width=12,
+        )
+        x_factor_combo.pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Label(frame_controls, text="Y:").pack(side=tk.LEFT, padx=(0, 2))
+        y_factor_combo = ttk.Combobox(
+            frame_controls,
+            textvariable=y_factor_var,
+            values=self.factor_names,
+            state=tk.DISABLED,
+            width=12,
+        )
+        y_factor_combo.pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Button(frame_controls, text="Update Map", command=render_map).pack(side=tk.LEFT)
+
+        dialog.plot_mode_var = plot_mode_var
+        dialog.x_factor_var = x_factor_var
+        dialog.y_factor_var = y_factor_var
+        dialog.preview_canvas = preview_canvas
+        render_map()
+
+    def _plot_pca(self):
+        """Backward-compatible entry point for the shared stimulus-map dialog."""
+        self._plot_stimulus_map()
 
 
 def main():

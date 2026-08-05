@@ -35,7 +35,7 @@ The GUI mainly supports the following operations:
 - Choose Promax rotation, Varimax rotation, or no rotation
 - Display, plot, and export the factor loading matrix as CSV
 - Display and export the mean and standard deviation (SD) of factor scores by stimulus as CSV
-- Display a stimulus map with PCA based on mean factor scores; when a respondent column is selected, each stimulus is summarized by its centroid and a within-stimulus 1-SD covariance ellipse representing respondent variability
+- Display a stimulus map using either PCA or two selected factor-score axes; when a respondent column is selected, each stimulus is summarized by its centroid and a within-stimulus 1-SD covariance ellipse representing respondent variability
 
 ## Expected CSV Structure
 
