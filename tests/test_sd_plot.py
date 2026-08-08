@@ -31,6 +31,61 @@ def test_plot_factor_loadings_uses_larger_heatmap_value_labels(monkeypatch):
     plt.close("all")
 
 
+def test_plot_factor_loadings_adds_reading_guide_to_bottom_right(monkeypatch):
+    plt.close("all")
+    monkeypatch.setattr(plt, "show", lambda: None)
+    loadings = pd.DataFrame(
+        {"Factor 1": [0.75, -0.25], "Factor 2": [0.10, 0.80]},
+        index=["Item 1", "Item 2"],
+    )
+    correlations = pd.DataFrame(
+        {"Factor 1": [1.0, 0.30], "Factor 2": [0.30, 1.0]},
+        index=["Factor 1", "Factor 2"],
+    )
+
+    plot_factor_loadings(
+        loadings,
+        title="Loadings",
+        inverted_rows=[False, True],
+        promax_corr_df=correlations,
+        caption="Corr: Pearson",
+        regex_applied=True,
+    )
+
+    fig = plt.gcf()
+    guide = next(text for text in fig.texts if text.get_text().startswith("How to read the factor pattern matrix"))
+    guide_text = guide.get_text()
+    assert np.isclose(guide.get_position()[0], fig.axes[1].get_position().x0 - 0.10)
+    assert "rating values indicate ratings closer to the RIGHT adjective" in guide_text
+    assert "items marked with an asterisk (*)" in guide_text
+    assert "factor loadings are multiplied by -1" in guide_text
+    assert "LEFT and RIGHT adjectives in the label are swapped" in guide_text
+
+    plt.close("all")
+
+
+def test_plot_factor_loadings_keeps_space_for_guide_without_correlation_matrix(monkeypatch):
+    plt.close("all")
+    monkeypatch.setattr(plt, "show", lambda: None)
+    loadings = pd.DataFrame(
+        {"Factor 1": [0.75, -0.25], "Factor 2": [0.10, 0.80]},
+        index=["Item 1", "Item 2"],
+    )
+
+    plot_factor_loadings(loadings, title="Loadings", caption="Corr: Pearson")
+
+    fig = plt.gcf()
+    guide = next(text for text in fig.texts if text.get_text().startswith("How to read the factor pattern matrix"))
+    assert tuple(fig.get_size_inches()) == (10.0, 6.0)
+    assert np.isclose(guide.get_position()[0], 0.42)
+    guide_text = guide.get_text()
+    assert "items marked with an asterisk (*)" in guide_text
+    assert "factor loadings are multiplied by -1" in guide_text
+    assert "adjectives in the label are swapped" not in guide_text
+
+    plt.close("all")
+
+
 def test_create_pca_map_figure_summarizes_respondent_points_by_stimulus():
     plt.close("all")
     index = pd.MultiIndex.from_tuples(

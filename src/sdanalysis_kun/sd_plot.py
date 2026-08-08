@@ -11,9 +11,31 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 
-def plot_factor_loadings(loading_df, title, inverted_rows=None, promax_corr_df=None, caption=""):
+FACTOR_LOADING_READING_GUIDE = (
+    "How to read the factor pattern matrix:\n"
+    "1. Higher rating values indicate ratings closer to the RIGHT adjective."
+)
+
+FACTOR_LOADING_REVERSED_ITEM_GUIDE = (
+    "2. For items marked with an asterisk (*), factor loadings are multiplied by -1."
+)
+
+FACTOR_LOADING_REGEX_REVERSED_ITEM_GUIDE = (
+    "2. For items marked with an asterisk (*), factor loadings are multiplied by -1,\n"
+    "   and the LEFT and RIGHT adjectives in the label are swapped."
+)
+
+
+def plot_factor_loadings(
+    loading_df,
+    title,
+    inverted_rows=None,
+    promax_corr_df=None,
+    caption="",
+    regex_applied=False,
+):
     show_corr = promax_corr_df is not None
-    fig, axes = plt.subplots(1, 2 if show_corr else 1, figsize=(12, 6) if show_corr else None)
+    fig, axes = plt.subplots(1, 2 if show_corr else 1, figsize=(12, 6) if show_corr else (10, 6))
 
     ax_loadings = axes[0] if show_corr else axes
     ax_loadings.imshow(loading_df.values, aspect="auto", vmin=-1, vmax=1, cmap="coolwarm")
@@ -27,11 +49,10 @@ def plot_factor_loadings(loading_df, title, inverted_rows=None, promax_corr_df=N
     for y in range(loading_df.shape[0]):
         for x in range(loading_df.shape[1]):
             ax_loadings.text(x, y, f"{loading_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=12)
-    ax_loadings.set_title(title if not show_corr else f"{title}: Factor Loadings")
-    # caption用のスペースをグラフの下に確保
-    # キャプションを追加
+    ax_loadings.set_title(title if not show_corr else f"{title}")
+    # グラフ下部の左側に分析条件を表示する。
     if caption:
-        plt.figtext(0.01, 0.01, caption, wrap=True, horizontalalignment="left", fontsize=10)
+        fig.text(0.01, 0.01, caption, wrap=True, horizontalalignment="left", fontsize=10)
 
     if show_corr:
         ax_corr = axes[1]
@@ -45,8 +66,26 @@ def plot_factor_loadings(loading_df, title, inverted_rows=None, promax_corr_df=N
                 ax_corr.text(x, y, f"{promax_corr_df.iat[y, x]:.2f}", ha="center", va="center", fontsize=12)
         ax_corr.set_title("Promax Factor Correlations")
 
-    plt.gcf().canvas.manager.set_window_title("Factor Loading Matrix")
-    plt.tight_layout(rect=[0, 0.1, 1, 1])  # 下部10%をキャプション用テキストのために予約
+    # 下部16%を分析条件と読み方のために確保する。
+    fig.tight_layout(rect=[0, 0.16, 1, 1])
+    guide_x = (ax_corr.get_position().x0 if show_corr else 0.52) - 0.10
+    reversed_item_guide = (
+        FACTOR_LOADING_REGEX_REVERSED_ITEM_GUIDE
+        if regex_applied
+        else FACTOR_LOADING_REVERSED_ITEM_GUIDE
+    )
+    reading_guide = f"{FACTOR_LOADING_READING_GUIDE}\n{reversed_item_guide}"
+    fig.text(
+        guide_x,
+        0.01,
+        reading_guide,
+        horizontalalignment="left",
+        verticalalignment="bottom",
+        fontsize=9,
+        linespacing=1.15,
+    )
+
+    fig.canvas.manager.set_window_title("Factor Loading Matrix")
     plt.show()
 
 

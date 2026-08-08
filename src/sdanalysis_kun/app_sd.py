@@ -824,7 +824,11 @@ class SDApp:
                 if self.invert_map.get(col, False):
                     plot_df.loc[col] = -plot_df.loc[col]
             # 表示名に変換
-            plot_df.index = [self._format_adj_name(col) for col in original_cols]
+            formatted_names = [self._format_adj_name(col) for col in original_cols]
+            plot_df.index = formatted_names
+            regex_applied = bool(self.regex_var.get().strip()) and any(
+                formatted_name != col for col, formatted_name in zip(original_cols, formatted_names)
+            )
             inverted_rows = [self.invert_map.get(col, False) for col in original_cols]
             if self.corr_name_var.get() == "polychoric":
                 caption = "Corr: Polychoric\n"
@@ -853,6 +857,7 @@ class SDApp:
                 inverted_rows=inverted_rows,
                 promax_corr_df=self.factor_corr_df if self.current_rotation == "promax" else None,
                 caption=caption + cronbach_caption,
+                regex_applied=regex_applied,
             )
 
     def _export_loadings_csv(self):
