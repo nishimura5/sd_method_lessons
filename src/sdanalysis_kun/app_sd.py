@@ -43,6 +43,7 @@ class SDApp:
         self.filtered_df = None
         self.target_stimulus_table = {}  # 分析対象の刺激名のホワイトリスト、{"colname": [stimulus1, stimulus2, ...], ...} の形式
         self.invert_map = {}
+        self.csv_path = ""
         self.png_folder_var = tk.StringVar(value="")
 
         set_japanese_font()
@@ -62,7 +63,7 @@ class SDApp:
         )
         ttk.Button(frame_file, text="Browse", command=self._select_file).pack(side=tk.LEFT)
 
-        self._add_png_folder_control(frame_source)
+        self._add_png_folder_control(frame_file)
 
         # === 刺激名カラム選択 ===
         frame_row = ttk.Frame(self.root)
@@ -319,11 +320,16 @@ class SDApp:
 
         self.filtered_df = None
 
-        self.file_path_var.set(path)
+        self.csv_path = path
+        self.thumbnail_folder_button.config(state=tk.NORMAL)
 
         thumbnail_folder = find_thumbnail_png_folder(path)
         if thumbnail_folder is not None:
             self.png_folder_var.set(str(thumbnail_folder))
+        else:
+            self.png_folder_var.set("")
+
+        self._update_source_path_display()
 
         # カラム一覧を刺激名コンボボックスに設定
         columns = list(self.df.columns)
@@ -406,17 +412,35 @@ class SDApp:
         return col
 
     def _add_png_folder_control(self, parent):
-        """メインウィンドウに共有PNGフォルダの選択コントロールを追加する。"""
-        frame_folder = ttk.LabelFrame(parent, text="Thumbnail PNG Folder", padding=10)
-        frame_folder.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
-        ttk.Entry(frame_folder, textvariable=self.png_folder_var, state="readonly").pack(
-            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5)
-        )
-        ttk.Button(
-            frame_folder,
-            text="Select Folder...",
+        """共有PNGフォルダを選択するボタンを追加する。CSV未選択時は無効化。"""
+        self.thumbnail_folder_button = ttk.Button(
+            parent,
+            text="Thumbnail Folder",
             command=self._select_png_folder,
-        ).pack(side=tk.LEFT)
+            state=tk.DISABLED,
+        )
+        self.thumbnail_folder_button.pack(side=tk.LEFT, padx=(5, 0))
+
+    def _format_path_for_display(self, path, ensure_trailing_slash=False):
+        if not path:
+            return ""
+        display_path = path.replace("\\", "/")
+        if ensure_trailing_slash and not display_path.endswith("/"):
+            display_path += "/"
+        return display_path
+
+    def _update_source_path_display(self):
+        csv_display = self._format_path_for_display(self.csv_path)
+        if not csv_display:
+            self.file_path_var.set("")
+            return
+
+        thumbnail_folder = self.png_folder_var.get().strip()
+        if thumbnail_folder:
+            thumbnail_display = self._format_path_for_display(thumbnail_folder, ensure_trailing_slash=True)
+        else:
+            thumbnail_display = "not defined"
+        self.file_path_var.set(f"{csv_display} (thumbnail: {thumbnail_display})")
 
     def _select_png_folder(self):
         """PNGフォルダを選択し、アプリのセッション状態として保持する。"""
@@ -430,6 +454,7 @@ class SDApp:
         )
         if folder:
             self.png_folder_var.set(folder)
+            self._update_source_path_display()
 
     def _create_png_preview_canvas(self, parent, initial_message):
         """刺激マップ・刺激フィルターで共用するPNGプレビュー領域を作成する。"""
